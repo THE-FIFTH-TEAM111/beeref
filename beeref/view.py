@@ -34,7 +34,7 @@ from beeref.main_controls import MainControlsMixin
 from beeref.scene import BeeGraphicsScene
 from beeref.utils import get_file_extension_from_format, qcolor_to_hex
 
-
+# 全局命令行参数
 commandline_args = CommandlineArgs()
 logger = logging.getLogger(__name__)
 
@@ -42,16 +42,27 @@ logger = logging.getLogger(__name__)
 class BeeGraphicsView(MainControlsMixin,
                       QtWidgets.QGraphicsView,
                       ActionsMixin):
-
-    PAN_MODE = 1
-    ZOOM_MODE = 2
-    SAMPLE_COLOR_MODE = 3
+  """
+    主视图类，继承自QGraphicsView并混入自定义功能
+    负责处理用户界面交互、图形渲染和场景管理
+    """
+    # 视图模式常量
+    PAN_MODE = 1  # 平移模式
+    ZOOM_MODE = 2   # 缩放模式 
+    SAMPLE_COLOR_MODE = 3  # 取色模式
 
     def __init__(self, app, parent=None):
+      """
+        初始化视图
+        
+        参数:
+            app: 主应用程序对象
+            parent: 父窗口部件
+        """
         super().__init__(parent)
         self.app = app
         self.parent = parent
-        self.settings = BeeSettings()
+        self.settings = BeeSettings()   # 应用程序设置
         self.keyboard_settings = KeyboardSettings()
         self.welcome_overlay = widgets.welcome_overlay.WelcomeOverlay(self)
 
