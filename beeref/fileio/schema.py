@@ -1,4 +1,4 @@
-USER_VERSION = 2
+USER_VERSION = 2 # 数据库版本号，用于控制数据库迁移（当结构变更时递增版本号）
 APPLICATION_ID = 2060242126
 
 
