@@ -1,5 +1,5 @@
 USER_VERSION = 2 # 数据库版本号，用于控制数据库迁移（当结构变更时递增版本号）
-APPLICATION_ID = 2060242126
+APPLICATION_ID = 2060242126 # 应用标识ID，通常用于区分不同应用的数据库（避免冲突）
 
 
 SCHEMA = [
