@@ -29,31 +29,31 @@ from beeref.items import item_registry, BeeErrorItem, sort_by_filename  # 导入
 from beeref.selection import MultiSelectItem, RubberbandItem  # 导入选择相关类：多选项和橡皮筋选择框
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # 创建当前模块的日志记录器
 
 
-class BeeGraphicsScene(QtWidgets.QGraphicsScene):
-    cursor_changed = QtCore.pyqtSignal(QtGui.QCursor)
-    cursor_cleared = QtCore.pyqtSignal()
+class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自QGraphicsScene
+    cursor_changed = QtCore.pyqtSignal(QtGui.QCursor)  # 定义光标变化信号
+    cursor_cleared = QtCore.pyqtSignal()  # 定义光标清除信号
 
-    MOVE_MODE = 1
-    RUBBERBAND_MODE = 2
+    MOVE_MODE = 1  # 定义移动模式常量
+    RUBBERBAND_MODE = 2  # 定义橡皮筋选择模式常量
 
-    def __init__(self, undo_stack):
-        super().__init__()
-        self.active_mode = None
-        self.undo_stack = undo_stack
-        self.max_z = 0
-        self.min_z = 0
-        self.Z_STEP = 0.001
-        self.selectionChanged.connect(self.on_selection_change)
-        self.changed.connect(self.on_change)
-        self.items_to_add = Queue()
-        self.edit_item = None
-        self.crop_item = None
-        self.settings = BeeSettings()
-        self.clear()
-        self._clear_ongoing = False
+    def __init__(self, undo_stack):  # 初始化方法，接收撤销栈参数
+        super().__init__()  # 调用父类的初始化方法
+        self.active_mode = None  # 初始化当前活动模式为None
+        self.undo_stack = undo_stack  # 保存撤销栈引用
+        self.max_z = 0  # 初始化最大Z轴值
+        self.min_z = 0  # 初始化最小Z轴值
+        self.Z_STEP = 0.001  # 设置Z轴步长
+        self.selectionChanged.connect(self.on_selection_change)  # 连接选择变化信号到处理函数
+        self.changed.connect(self.on_change)  # 连接场景变化信号到处理函数
+        self.items_to_add = Queue()  # 初始化待添加项目队列
+        self.edit_item = None  # 初始化当前编辑项目为None
+        self.crop_item = None  # 初始化裁剪项目为None
+        self.settings = BeeSettings()  # 初始化设置对象
+        self.clear()  # 清除场景内容
+        self._clear_ongoing = False  # 初始化清除操作标志为False
 
     def clear(self):
         self._clear_ongoing = True
