@@ -13,20 +13,20 @@
 # You should have received a copy of the GNU General Public License
 # along with BeeRef.  If not, see <https://www.gnu.org/licenses/>.
 
-from functools import partial
-import logging
-import math
-from queue import Queue
+from functools import partial  # 导入偏函数，用于固定函数参数创建新函数
+import logging  # 导入日志模块，用于记录程序运行时的日志信息
+import math  # 导入数学模块，用于数学计算（如三角函数、平方根等）
+from queue import Queue  # 导入队列数据结构，用于线程间通信或任务排队
 
-from PyQt6 import QtCore, QtWidgets, QtGui
-from PyQt6.QtCore import Qt
+from PyQt6 import QtCore, QtWidgets, QtGui  # 导入PyQt6的核心模块、控件模块和GUI模块
+from PyQt6.QtCore import Qt  # 导入Qt常量定义（如对齐方式、事件类型等）
 
-import rpack
+import rpack  # 导入矩形打包库，用于高效排列矩形元素
 
-from beeref import commands
-from beeref.config import BeeSettings
-from beeref.items import item_registry, BeeErrorItem, sort_by_filename
-from beeref.selection import MultiSelectItem, RubberbandItem
+from beeref import commands  # 导入beeref项目的命令模块，处理用户操作的命令实现
+from beeref.config import BeeSettings  # 导入配置设置类，管理应用程序的用户配置
+from beeref.items import item_registry, BeeErrorItem, sort_by_filename  # 导入项目项相关组件：注册表、错误项和文件名排序函数
+from beeref.selection import MultiSelectItem, RubberbandItem  # 导入选择相关类：多选项和橡皮筋选择框
 
 
 logger = logging.getLogger(__name__)
