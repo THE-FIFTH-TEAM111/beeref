@@ -38,182 +38,183 @@ from beeref.utils import get_file_extension_from_format, qcolor_to_hex
 commandline_args = CommandlineArgs()
 logger = logging.getLogger(__name__)
 
-
+# 主视图类，继承自QGraphicsView并混入自定义功能
+# 负责处理用户界面交互、图形渲染和场景管理
 class BeeGraphicsView(MainControlsMixin,
                       QtWidgets.QGraphicsView,
                       ActionsMixin):
-  """
-    主视图类，继承自QGraphicsView并混入自定义功能
-    负责处理用户界面交互、图形渲染和场景管理
-    """
+ 
     # 视图模式常量
     PAN_MODE = 1  # 平移模式
     ZOOM_MODE = 2   # 缩放模式 
     SAMPLE_COLOR_MODE = 3  # 取色模式
 
     def __init__(self, app, parent=None):
-      """
-        初始化视图
-        
-        参数:
-            app: 主应用程序对象
-            parent: 父窗口部件
-        """
-        super().__init__(parent)
-        self.app = app
-        self.parent = parent
+      
+        super().__init__(parent)# 初始化父类
+        self.app = app# 应用程序对象
+        self.parent = parent # 父窗口部件
         self.settings = BeeSettings()   # 应用程序设置
-        self.keyboard_settings = KeyboardSettings()
-        self.welcome_overlay = widgets.welcome_overlay.WelcomeOverlay(self)
+        self.keyboard_settings = KeyboardSettings() # 键盘设置
+        self.welcome_overlay = widgets.welcome_overlay.WelcomeOverlay(self) # 欢迎 overlay 层
 
         self.setBackgroundBrush(
-            QtGui.QBrush(QtGui.QColor(*constants.COLORS['Scene:Canvas'])))
-        self.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-
-        self.undo_stack = QtGui.QUndoStack(self)
-        self.undo_stack.setUndoLimit(100)
-        self.undo_stack.canRedoChanged.connect(self.on_can_redo_changed)
+            QtGui.QBrush(QtGui.QColor(*constants.COLORS['Scene:Canvas']))) # 设置场景背景为画布颜色
+        self.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)  # 开启反锯齿渲染
+        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame) # 移除边框
+          
+        self.undo_stack = QtGui.QUndoStack(self) # 初始化撤销栈
+        self.undo_stack.setUndoLimit(100) # 设置撤销栈最大操作数为 100
+        self.undo_stack.canRedoChanged.connect(self.on_can_redo_changed) 
+        # 连接撤销栈的 canRedoChanged 信号到 on_can_redo_changed 槽函数
         self.undo_stack.canUndoChanged.connect(self.on_can_undo_changed)
+        # 连接撤销栈的 canUndoChanged 信号到 on_can_undo_changed 槽函数
         self.undo_stack.cleanChanged.connect(self.on_undo_clean_changed)
+        # 连接撤销栈的 cleanChanged 信号到 on_undo_clean_changed 槽函数
 
-        self.filename = None
-        self.previous_transform = None
-        self.active_mode = None
+        self.filename = None# 当前打开的文件名
+        self.previous_transform = None # 上一次的变换矩阵
+        self.active_mode = None # 当前激活的模式
 
-        self.scene = BeeGraphicsScene(self.undo_stack)
-        self.scene.changed.connect(self.on_scene_changed)
-        self.scene.selectionChanged.connect(self.on_selection_changed)
-        self.scene.cursor_changed.connect(self.on_cursor_changed)
-        self.scene.cursor_cleared.connect(self.on_cursor_cleared)
-        self.setScene(self.scene)
+        self.scene = BeeGraphicsScene(self.undo_stack) # 初始化场景
+        self.scene.changed.connect(self.on_scene_changed) 
+        # 连接场景的 changed 信号到 on_scene_changed 槽函数
+        self.scene.selectionChanged.connect(self.on_selection_changed) 
+        # 连接场景的 selectionChanged 信号到 on_selection_changed 槽函数
+        self.scene.cursor_changed.connect(self.on_cursor_changed) 
+        # 连接场景的 cursor_changed 信号到 on_cursor_changed 槽函数
+        self.scene.cursor_cleared.connect(self.on_cursor_cleared) 
+        # 连接场景的 cursor_cleared 信号到 on_cursor_cleared 槽函数
+        self.setScene(self.scene) # 设置场景    
 
         # Context menu and actions
-        self.build_menu_and_actions()
-        self.control_target = self
-        self.init_main_controls(main_window=parent)
+        self.build_menu_and_actions() # 构建菜单和操作 
+        self.control_target = self # 设置控制目标为自身
+        self.init_main_controls(main_window=parent)# 初始化主控件
 
         # Load files given via command line
-        if commandline_args.filenames:
-            fn = commandline_args.filenames[0]
-            if os.path.splitext(fn)[1] == '.bee':
-                self.open_from_file(fn)
+        if commandline_args.filenames: # 如果命令行参数有文件名
+            fn = commandline_args.filenames[0] # 获取第一个文件名
+            if os.path.splitext(fn)[1] == '.bee': # 如果文件扩展名是 .bee
+                self.open_from_file(fn) # 从文件打开
             else:
-                self.do_insert_images(commandline_args.filenames)
+                self.do_insert_images(commandline_args.filenames) # 否则插入图像
 
-        self.update_window_title()
+        self.update_window_title() # 更新窗口标题
 
-    @property
-    def filename(self):
-        return self._filename
+    @property # 文件名属性
+    def filename(self): # 获取当前打开的文件名
+        return self._filename # 返回当前打开的文件名
 
-    @filename.setter
-    def filename(self, value):
-        self._filename = value
-        self.update_window_title()
+    @filename.setter # 文件名属性设置器
+    def filename(self, value): # 设置当前打开的文件名
+        self._filename = value # 设置当前打开的文件名
+        self.update_window_title() # 更新窗口标题
         if value:
-            self.settings.update_recent_files(value)
-            self.update_menu_and_actions()
+            self.settings.update_recent_files(value) # 更新最近打开的文件列表
+            self.update_menu_and_actions() # 更新菜单和操作
 
-    def cancel_active_modes(self):
-        self.scene.cancel_active_modes()
-        self.cancel_sample_color_mode()
-        self.active_mode = None
+    def cancel_active_modes(self): # 取消所有激活的模式
+        self.scene.cancel_active_modes() # 取消场景中所有激活的模式
+        self.cancel_sample_color_mode() # 取消取色模式
+        self.active_mode = None # 重置当前激活的模式为 None
 
-    def cancel_sample_color_mode(self):
-        logger.debug('Cancel sample color mode')
-        self.active_mode = None
-        self.viewport().unsetCursor()
+    def cancel_sample_color_mode(self): # 取消取色模式
+        logger.debug('Cancel sample color mode') # 调试日志：取消取色模式
+        self.active_mode = None # 重置当前激活的模式为 None
+        self.viewport().unsetCursor() # 取消设置视口光标
         if hasattr(self, 'sample_color_widget'):
-            self.sample_color_widget.hide()
-            del self.sample_color_widget
+            self.sample_color_widget.hide() # 隐藏取色小部件
+            del self.sample_color_widget # 删除取色小部件
         if self.scene.has_multi_selection():
-            self.scene.multi_select_item.bring_to_front()
+            self.scene.multi_select_item.bring_to_front()# 将多选项 bring to front
 
-    def update_window_title(self):
-        clean = self.undo_stack.isClean()
-        if clean and not self.filename:
-            title = constants.APPNAME
+    def update_window_title(self): # 更新窗口标题
+        clean = self.undo_stack.isClean() # 获取撤销栈是否为干净状态
+        if clean and not self.filename: # 如果撤销栈为干净状态且没有文件名
+            title = constants.APPNAME # 窗口标题为应用程序名称
         else:
-            name = os.path.basename(self.filename or '[Untitled]')
-            clean = '' if clean else '*'
-            title = f'{name}{clean} - {constants.APPNAME}'
-        self.parent.setWindowTitle(title)
+            name = os.path.basename(self.filename or '[Untitled]') # 获取文件名（如果有），否则为 '[Untitled]'
+            clean = '' if clean else '*' # 如果撤销栈为干净状态，则不显示 '*'，否则显示 '*'
+            title = f'{name}{clean} - {constants.APPNAME}' 
+            # 窗口标题为文件名（如果有），否则为 '[Untitled]'，后跟 '*'（如果撤销栈为不干净状态），最后为应用程序名称
+        self.parent.setWindowTitle(title) # 设置父窗口标题为更新后的标题
 
-    def on_scene_changed(self, region):
-        if not self.scene.items():
-            logger.debug('No items in scene')
-            self.setTransform(QtGui.QTransform())
-            self.welcome_overlay.setFocus()
-            self.clearFocus()
-            self.welcome_overlay.show()
-            self.actiongroup_set_enabled('active_when_items_in_scene', False)
+    def on_scene_changed(self, region): # 场景变化槽函数
+        if not self.scene.items(): # 如果场景中没有物品
+            logger.debug('No items in scene') # 调试日志：场景中没有物品
+            self.setTransform(QtGui.QTransform()) # 重置变换矩阵为单位矩阵
+            self.welcome_overlay.setFocus() # 设置欢迎叠加层为焦点
+            self.clearFocus() # 清除当前焦点
+            self.welcome_overlay.show() # 显示欢迎叠加层
+            self.actiongroup_set_enabled('active_when_items_in_scene', False) # 禁用场景中物品相关操作
         else:
-            self.setFocus()
-            self.welcome_overlay.clearFocus()
-            self.welcome_overlay.hide()
-            self.actiongroup_set_enabled('active_when_items_in_scene', True)
-        self.recalc_scene_rect()
+            self.setFocus(QtCore.Qt.PopupFocusReason) # 设置场景为焦点，使用 PopupFocusReason 原因
+            self.welcome_overlay.clearFocus()# 清除欢迎叠加层焦点
+            self.welcome_overlay.hide() # 隐藏欢迎叠加层
+            self.actiongroup_set_enabled('active_when_items_in_scene', True) # 启用场景中物品相关操作
+        self.recalc_scene_rect() # 重新计算场景矩形
 
-    def on_can_redo_changed(self, can_redo):
-        self.actiongroup_set_enabled('active_when_can_redo', can_redo)
+    def on_can_redo_changed(self, can_redo): # 可以重做变化槽函数
+        self.actiongroup_set_enabled('active_when_can_redo', can_redo) # 根据 can_redo 启用或禁用 'active_when_can_redo' 操作组
 
-    def on_can_undo_changed(self, can_undo):
-        self.actiongroup_set_enabled('active_when_can_undo', can_undo)
+    def on_can_undo_changed(self, can_undo): # 可以撤销变化槽函数
+        self.actiongroup_set_enabled('active_when_can_undo', can_undo) # 根据 can_undo 启用或禁用 'active_when_can_undo' 操作组
 
-    def on_undo_clean_changed(self, clean):
-        self.update_window_title()
+    def on_undo_clean_changed(self, clean): # 撤销栈干净状态变化槽函数
+        self.update_window_title() # 更新窗口标题
 
-    def on_context_menu(self, point):
-        self.context_menu.exec(self.mapToGlobal(point))
+    def on_context_menu(self, point): # 上下文菜单槽函数
+        self.context_menu.exec(self.mapToGlobal(point)) # 在全局坐标中执行上下文菜单
 
-    def get_supported_image_formats(self, cls):
+    def get_supported_image_formats(self, cls): # 获取支持的图像格式
         formats = []
 
-        for f in cls.supportedImageFormats():
-            string = f'*.{f.data().decode()}'
-            formats.extend((string, string.upper()))
-        return ' '.join(formats)
+        for f in cls.supportedImageFormats(): # 遍历支持的图像格式
+            string = f'*.{f.data().decode()}' # 转换为字符串格式
+            formats.extend((string, string.upper())) # 扩展格式列表，包含小写和大写格式
+        return ' '.join(formats) # 返回空格分隔的格式字符串 
 
-    def get_view_center(self):
+    def get_view_center(self): # 获取视图中心坐标
         return QtCore.QPoint(round(self.size().width() / 2),
-                             round(self.size().height() / 2))
+                             round(self.size().height() / 2)) # 返回视图中心坐标
 
-    def clear_scene(self):
-        logging.debug('Clearing scene...')
-        self.cancel_active_modes()
-        self.scene.clear()
-        self.undo_stack.clear()
-        self.filename = None
-        self.setTransform(QtGui.QTransform())
+    def clear_scene(self): # 清除场景
+        logging.debug('Clearing scene...') # 调试日志：清除场景
+        self.cancel_active_modes() # 取消所有激活的模式
+        self.scene.clear() # 清除场景中的所有物品
+        self.undo_stack.clear() # 清除撤销栈 
+        self.filename = None # 重置文件名为 None
+        self.setTransform(QtGui.QTransform()) # 重置变换矩阵为单位矩阵
 
-    def reset_previous_transform(self, toggle_item=None):
-        if (self.previous_transform
-                and self.previous_transform['toggle_item'] != toggle_item):
-            self.previous_transform = None
+    def reset_previous_transform(self, toggle_item=None): # 重置之前的变换
+        if (self.previous_transform # 如果有之前的变换
+                and self.previous_transform['toggle_item'] != toggle_item): # 如果之前的变换与当前物品不同
+            self.previous_transform = None # 重置之前的变换为 None  
+        # 如果之前的变换与当前物品不同，将之前的变换重置为 None 
 
-    def fit_rect(self, rect, toggle_item=None):
-        if toggle_item and self.previous_transform:
-            logger.debug('Fit view: Reset to previous')
-            self.setTransform(self.previous_transform['transform'])
-            self.centerOn(self.previous_transform['center'])
-            self.previous_transform = None
+    def fit_rect(self, rect, toggle_item=None): # 适合矩形
+        if toggle_item and self.previous_transform: # 如果有之前的变换且与当前物品不同
+            logger.debug('Fit view: Reset to previous') # 调试日志：重置到之前的变换
+            self.setTransform(self.previous_transform['transform']) # 设置变换矩阵为之前的变换矩阵
+            self.centerOn(self.previous_transform['center']) # 中心视图到之前的变换中心
+            self.previous_transform = None # 重置之前的变换为 None  
             return
-        if toggle_item:
-            self.previous_transform = {
-                'toggle_item': toggle_item,
-                'transform': QtGui.QTransform(self.transform()),
-                'center': self.mapToScene(self.get_view_center()),
+        if toggle_item: # 如果有物品
+            self.previous_transform = { # 存储当前变换
+                'toggle_item': toggle_item, # 存储当前物品
+                'transform': QtGui.QTransform(self.transform()), # 存储当前变换矩阵
+                'center': self.mapToScene(self.get_view_center()), # 存储当前视图中心坐标
             }
         else:
-            self.previous_transform = None
+            self.previous_transform = None # 重置之前的变换为 None  
 
-        logger.debug(f'Fit view: {rect}')
-        self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
-        self.recalc_scene_rect()
+        logger.debug(f'Fit view: {rect}') # 调试日志：适合矩形
+        self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio) # 适合矩形，保持纵横比
+        self.recalc_scene_rect() # 重新计算场景矩形
         # It seems to be more reliable when we fit a second time
         # Sometimes a changing scene rect can mess up the fitting
-        self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+        self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio) 
         logger.trace('Fit view done')
 
     def get_confirmation_unsaved_changes(self, msg):
