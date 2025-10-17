@@ -56,210 +56,212 @@ class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自
         self._clear_ongoing = False  # 初始化清除操作标志为False
 
     def clear(self):
-        self._clear_ongoing = True
-        super().clear()
-        self.internal_clipboard = []
-        self.rubberband_item = RubberbandItem()
-        self.multi_select_item = MultiSelectItem()
-        self._clear_ongoing = False
+        self._clear_ongoing = True # 设置清理进行中标志，避免清理过程中触发其他依赖状态的逻辑
+        super().clear() # 调用父类的清除方法，清除场景中的所有项目
+        self.internal_clipboard = [] # 初始化内部剪贴板为空列表，用于存储复制到剪贴板的项目
+        self.rubberband_item = RubberbandItem() # 重新创建橡皮筋选择框实例，重置选择框状态
+        self.multi_select_item = MultiSelectItem() # 重新创建多选项实例，重置多选项状态
+        self._clear_ongoing = False # 清除操作完成，重置清除进行中标志
 
-    def addItem(self, item):
-        logger.debug(f'Adding item {item}')
-        super().addItem(item)
+    def addItem(self, item): # 添加项目到场景
+        logger.debug(f'Adding item {item}') # 记录添加项目的调试日志
+        super().addItem(item) # 调用父类的添加项目方法，将项目添加到场景中
 
-    def removeItem(self, item):
-        logger.debug(f'Removing item {item}')
-        super().removeItem(item)
+    def removeItem(self, item): # 从场景中移除项目
+        logger.debug(f'Removing item {item}') # 记录移除项目的调试日志
+        super().removeItem(item) # 调用父类的移除项目方法，将项目从场景中移除
 
-    def cancel_active_modes(self):
+    def cancel_active_modes(self): # 取消所有活动模式
         """Cancels ongoing crop modes, rubberband modes etc, if there are
         any.
         """
-        self.cancel_crop_mode()
-        self.end_rubberband_mode()
+        self.cancel_crop_mode() # 取消当前的裁剪模式
+        self.end_rubberband_mode() # 结束当前的橡皮筋选择模式
 
-    def end_rubberband_mode(self):
-        if self.rubberband_item.scene():
-            logger.debug('Ending rubberband selection')
-            self.removeItem(self.rubberband_item)
-        self.active_mode = None
+    def end_rubberband_mode(self): # 结束橡皮筋选择模式
+        if self.rubberband_item.scene(): # 如果橡皮筋选择框存在于场景中
+            logger.debug('Ending rubberband selection') # 记录结束橡皮筋选择模式的调试日志
+            self.removeItem(self.rubberband_item) # 从场景中移除橡皮筋选择框
+        self.active_mode = None # 重置当前活动模式为None
 
-    def cancel_crop_mode(self):
-        """Cancels an ongoing crop mode, if there is any."""
-        if self.crop_item:
-            self.crop_item.exit_crop_mode(confirm=False)
+    def cancel_crop_mode(self): # 取消当前的裁剪模式
+        """Cancels an ongoing crop mode, if there is any.""" 
+        if self.crop_item: # 如果存在裁剪项目
+            self.crop_item.exit_crop_mode(confirm=False) # 退出裁剪模式，不确认裁剪
 
-    def copy_selection_to_internal_clipboard(self):
-        self.internal_clipboard = []
-        for item in self.selectedItems(user_only=True):
-            self.internal_clipboard.append(item)
+    def copy_selection_to_internal_clipboard(self): # 复制当前选择的项目到内部剪贴板
+        self.internal_clipboard = [] # 清空内部剪贴板
+        for item in self.selectedItems(user_only=True): # 遍历当前用户选择的项目
+            self.internal_clipboard.append(item) # 将项目添加到内部剪贴板
 
-    def paste_from_internal_clipboard(self, position):
-        copies = []
+    def paste_from_internal_clipboard(self, position): # 从内部剪贴板粘贴项目到指定位置
+        copies = [] # 创建一个空列表，用于存储复制的项目
         for item in self.internal_clipboard:
-            copy = item.create_copy()
-            copies.append(copy)
-        self.undo_stack.push(commands.InsertItems(self, copies, position))
+            copy = item.create_copy() # 创建当前项目的副本
+            copies.append(copy) # 将副本添加到复制列表中
+        self.undo_stack.push(commands.InsertItems(self, copies, position)) # 将复制操作添加到撤销栈中
 
-    def raise_to_top(self):
-        self.cancel_active_modes()
-        items = self.selectedItems(user_only=True)
-        z_values = map(lambda i: i.zValue(), items)
-        delta = self.max_z + self.Z_STEP - min(z_values)
-        logger.debug(f'Raise to top, delta: {delta}')
-        for item in items:
-            item.setZValue(item.zValue() + delta)
+    def raise_to_top(self): # 将当前选择的项目提升到顶部
+        self.cancel_active_modes() # 取消所有活动模式，确保没有正在进行的操作干扰
+        items = self.selectedItems(user_only=True) # 获取当前用户选择的项目
+        z_values = map(lambda i: i.zValue(), items) # 提取项目的Z轴值
+        delta = self.max_z + self.Z_STEP - min(z_values) # 计算需要提升的Z轴值增量
+        logger.debug(f'Raise to top, delta: {delta}') # 记录提升到顶部的调试日志
+        for item in items: # 遍历选择的项目
+            item.setZValue(item.zValue() + delta) # 提升项目的Z轴值，将其提升到顶部
 
-    def lower_to_bottom(self):
-        self.cancel_active_modes()
-        items = self.selectedItems(user_only=True)
-        z_values = map(lambda i: i.zValue(), items)
-        delta = self.min_z - self.Z_STEP - max(z_values)
-        logger.debug(f'Lower to bottom, delta: {delta}')
+    def lower_to_bottom(self): # 将当前选择的项目降低到底部
+        self.cancel_active_modes() # 取消所有活动模式，确保没有正在进行的操作干扰
+        items = self.selectedItems(user_only=True) # 获取当前用户选择的项目
+        z_values = map(lambda i: i.zValue(), items) # 提取项目的Z轴值
+        delta = self.min_z - self.Z_STEP - max(z_values) # 计算需要降低的Z轴值增量
+        logger.debug(f'Lower to bottom, delta: {delta}') # 记录降低到底部的调试日志
 
-        for item in items:
-            item.setZValue(item.zValue() + delta)
+        for item in items: # 遍历选择的项目
+            item.setZValue(item.zValue() + delta) # 降低项目的Z轴值，将其降低到底部
 
-    def normalize_width_or_height(self, mode):
+    def normalize_width_or_height(self, mode): # 归一化选择项目的宽度或高度
         """Scale the selected images to have the same width or height, as
         specified by ``mode``.
 
         :param mode: "width" or "height".
         """
 
-        self.cancel_active_modes()
-        values = []
-        items = self.selectedItems(user_only=True)
-        for item in items:
-            rect = self.itemsBoundingRect(items=[item])
-            values.append(getattr(rect, mode)())
-        if len(values) < 2:
-            return
-        avg = sum(values) / len(values)
-        logger.debug(f'Calculated average {mode} {avg}')
+        self.cancel_active_modes() # 取消所有活动模式，确保没有正在进行的操作干扰
+        values = [] # 创建一个空列表，用于存储选择项目的宽度或高度值
+        items = self.selectedItems(user_only=True) # 获取当前用户选择的项目
+        for item in items: # 遍历选择的项目
+            rect = self.itemsBoundingRect(items=[item]) # 获取项目的边界矩形
+            values.append(getattr(rect, mode)()) # 提取矩形的宽度或高度值，并添加到列表中
+        if len(values) < 2: # 如果选择的项目数量小于2
+            return # 直接返回，无需归一化
+        avg = sum(values) / len(values) # 计算宽度或高度的平均值
+        logger.debug(f'Calculated average {mode} {avg}') # 记录归一化的平均值调试日志
 
-        scale_factors = []
-        for item in items:
-            rect = self.itemsBoundingRect(items=[item])
-            scale_factors.append(avg / getattr(rect, mode)())
+        scale_factors = [] # 创建一个空列表，用于存储每个项目的归一化缩放因子
+        for item in items: # 遍历选择的项目
+            rect = self.itemsBoundingRect(items=[item]) # 获取项目的边界矩形
+            scale_factors.append(avg / getattr(rect, mode)()) # 计算项目的归一化缩放因子，并添加到列表中
         self.undo_stack.push(
-            commands.NormalizeItems(items, scale_factors))
+            commands.NormalizeItems(items, scale_factors)) # 将归一化操作添加到撤销栈中
 
-    def normalize_height(self):
+    def normalize_height(self): # 归一化选择项目的高度
         """Scale selected images to the same height."""
-        return self.normalize_width_or_height('height')
+        return self.normalize_width_or_height('height') # 归一化选择项目的高度
 
-    def normalize_width(self):
+    def normalize_width(self): # 归一化选择项目的宽度
         """Scale selected images to the same width."""
-        return self.normalize_width_or_height('width')
+        return self.normalize_width_or_height('width') # 归一化选择项目的宽度
 
-    def normalize_size(self):
+    def normalize_size(self): # 归一化选择项目的大小
         """Scale selected images to the same size.
 
         Size meaning the area = widh * height.
         """
 
-        self.cancel_active_modes()
-        sizes = []
-        items = self.selectedItems(user_only=True)
-        for item in items:
-            rect = self.itemsBoundingRect(items=[item])
-            sizes.append(rect.width() * rect.height())
+        self.cancel_active_modes() # 取消所有活动模式，确保没有正在进行的操作干扰
+        sizes = [] # 创建一个空列表，用于存储选择项目的面积值
+        items = self.selectedItems(user_only=True) # 获取当前用户选择的项目
+        for item in items: # 遍历选择的项目
+            rect = self.itemsBoundingRect(items=[item]) # 获取项目的边界矩形
+            sizes.append(rect.width() * rect.height()) # 计算项目的面积值，并添加到列表中
 
-        if len(sizes) < 2:
-            return
+        if len(sizes) < 2: # 如果选择的项目数量小于2
+            return # 直接返回，无需归一化
 
-        avg = sum(sizes) / len(sizes)
-        logger.debug(f'Calculated average size {avg}')
+        avg = sum(sizes) / len(sizes) # 计算选择项目的面积平均值
+        logger.debug(f'Calculated average size {avg}') # 记录归一化的平均值调试日志
 
-        scale_factors = []
-        for item in items:
-            rect = self.itemsBoundingRect(items=[item])
-            scale_factors.append(math.sqrt(avg / rect.width() / rect.height()))
+        scale_factors = [] # 创建一个空列表，用于存储每个项目的归一化缩放因子
+        for item in items: # 遍历选择的项目
+            rect = self.itemsBoundingRect(items=[item]) # 获取项目的边界矩形
+            scale_factors.append(math.sqrt(avg / rect.width() / rect.height())) # 计算项目的归一化缩放因子，并添加到列表中
         self.undo_stack.push(
-            commands.NormalizeItems(items, scale_factors))
+            commands.NormalizeItems(items, scale_factors)) # 将归一化操作添加到撤销栈中
 
-    def arrange_default(self):
-        default = self.settings.valueOrDefault('Items/arrange_default')
+
+
+    def arrange_default(self): # 按默认方式排列选择的项目
+        default = self.settings.valueOrDefault('Items/arrange_default') # 获取默认的排列方式
         MAPPING = {
-            'optimal': self.arrange_optimal,
-            'horizontal': self.arrange,
-            'vertical': partial(self.arrange, vertical=True),
-            'square': self.arrange_square,
+            'optimal': self.arrange_optimal,  # 最优排列方式
+            'horizontal': self.arrange,  # 水平排列方式
+            'vertical': partial(self.arrange, vertical=True),  # 垂直排列方式
+            'square': self.arrange_square,  # 正方形排列方式
         }
 
-        MAPPING[default]()
+        MAPPING[default]() # 调用默认的排列方式
 
-    def arrange(self, vertical=False):
-        """Arrange items in a line (horizontally or vertically)."""
+    def arrange(self, vertical=False): # 按指定方式排列选择的项目
+        """Arrange items in a line (horizontally or vertically).""" # 按指定方式排列选择的项目
 
-        self.cancel_active_modes()
+        self.cancel_active_modes() # 取消所有活动模式，确保没有正在进行的操作干扰
 
-        items = sort_by_filename(self.selectedItems(user_only=True))
-        if len(items) < 2:
-            return
+        items = sort_by_filename(self.selectedItems(user_only=True)) # 获取当前用户选择的项目，并按文件名排序
+        if len(items) < 2:# 如果选择的项目数量小于2
+            return # 直接返回，无需排列
 
-        gap = self.settings.valueOrDefault('Items/arrange_gap')
-        center = self.get_selection_center()
-        positions = []
-        rects = []
-        for item in items:
-            rects.append({
-                'rect': self.itemsBoundingRect(items=[item]),
-                'item': item})
+        gap = self.settings.valueOrDefault('Items/arrange_gap') # 获取项目之间的间距
+        center = self.get_selection_center() # 获取选择项目的中心位置
+        positions = [] # 创建一个空列表，用于存储每个项目的新位置
+        rects = [] # 创建一个空列表，用于存储每个项目的边界矩形和项目本身
+        for item in items: # 遍历选择的项目
+            rects.append({ # 为每个项目创建一个字典，包含项目的边界矩形和项目本身
+                'rect': self.itemsBoundingRect(items=[item]), # 获取项目的边界矩形
+                'item': item}) # 包含项目的边界矩形和项目本身
 
-        if vertical:
-            rects.sort(key=lambda r: r['rect'].topLeft().y())
-            sum_height = sum(map(lambda r: r['rect'].height(), rects))
-            y = round(center.y() - sum_height/2)
-            for rect in rects:
-                positions.append(
-                    QtCore.QPointF(
-                        round(center.x() - rect['rect'].width()/2), y))
-                y += rect['rect'].height() + gap
+        if vertical: # 如果按垂直方向排列
+            rects.sort(key=lambda r: r['rect'].topLeft().y()) # 按项目的顶部坐标排序
+            sum_height = sum(map(lambda r: r['rect'].height(), rects)) # 计算所有项目的总高度
+            y = round(center.y() - sum_height/2) # 计算垂直方向上的起始位置
+            for rect in rects: # 遍历每个项目
+                positions.append( # 为每个项目计算新的位置
+                    QtCore.QPointF( # 计算每个项目的新位置
+                        round(center.x() - rect['rect'].width()/2), y)) # 计算每个项目的新位置
+                y += rect['rect'].height() + gap # 更新垂直方向上的位置，考虑项目高度和间距
 
-        else:
-            rects.sort(key=lambda r: r['rect'].topLeft().x())
-            sum_width = sum(map(lambda r: r['rect'].width(), rects))
-            x = round(center.x() - sum_width/2)
-            for rect in rects:
-                positions.append(
-                    QtCore.QPointF(
-                        x, round(center.y() - rect['rect'].height()/2)))
-                x += rect['rect'].width() + gap
+        else: # 如果按水平方向排列
+            rects.sort(key=lambda r: r['rect'].topLeft().x()) # 按项目的左侧坐标排序
+            sum_width = sum(map(lambda r: r['rect'].width(), rects)) # 计算所有项目的总宽度
+            x = round(center.x() - sum_width/2) # 计算水平方向上的起始位置
+            for rect in rects: # 遍历每个项目
+                positions.append( # 为每个项目计算新的位置
+                    QtCore.QPointF( # 计算每个项目的新位置
+                        x, round(center.y() - rect['rect'].height()/2))) # 计算每个项目的新位置
+                x += rect['rect'].width() + gap # 更新水平方向上的位置，考虑项目宽度和间距
 
-        self.undo_stack.push(
-            commands.ArrangeItems(self,
-                                  [r['item'] for r in rects],
-                                  positions))
+        self.undo_stack.push( # 将排列操作添加到撤销栈中
+            commands.ArrangeItems(self, # 创建一个排列项目的命令对象
+                                  [r['item'] for r in rects], # 包含所有要排列的项目
+                                  positions)) # 包含所有项目的新位置
 
-    def arrange_optimal(self):
-        self.cancel_active_modes()
+    def arrange_optimal(self): # 按最优方式排列选择的项目
+        self.cancel_active_modes() # 取消所有活动模式，确保没有正在进行的操作干扰
 
-        items = self.selectedItems(user_only=True)
-        if len(items) < 2:
-            return
+        items = self.selectedItems(user_only=True) # 获取当前用户选择的项目
+        if len(items) < 2: # 如果选择的项目数量小于2
+            return # 直接返回，无需排列
 
-        gap = self.settings.valueOrDefault('Items/arrange_gap')
+        gap = self.settings.valueOrDefault('Items/arrange_gap') # 获取项目之间的间距
 
-        sizes = []
-        for item in items:
-            rect = self.itemsBoundingRect(items=[item])
-            sizes.append((round(rect.width() + gap),
-                          round(rect.height() + gap)))
+        sizes = [] # 创建一个空列表，用于存储每个项目的宽度和高度
+        for item in items: # 遍历选择的项目
+            rect = self.itemsBoundingRect(items=[item]) # 获取项目的边界矩形
+            sizes.append((round(rect.width() + gap), # 包含每个项目的宽度和高度
+                          round(rect.height() + gap))) # 包含每个项目的宽度和高度
 
         # The minimal area the items need if they could be packed optimally;
         # we use this as a starting shape for the packing algorithm
-        min_area = sum(map(lambda s: s[0] * s[1], sizes))
-        width = math.ceil(math.sqrt(min_area))
+        min_area = sum(map(lambda s: s[0] * s[1], sizes)) # 计算所有项目的最小面积
+        width = math.ceil(math.sqrt(min_area)) # 计算最小面积的平方根，向上取整作为初始宽度
 
-        positions = None
-        while not positions:
-            try:
-                positions = rpack.pack(
+        positions = None # 初始化位置列表为None
+        while not positions: # 循环直到成功打包项目
+            try: # 尝试使用当前宽度打包项目
+                positions = rpack.pack( 
                     sizes, max_width=width, max_height=width)
             except rpack.PackingImpossibleError:
-                width = math.ceil(width * 1.2)
+                width = math.ceil(width * 1.2) # 如果打包失败，将宽度增加20%，并向上取整
 
         # We want the items to center around the selection's center,
         # not (0, 0)
