@@ -214,7 +214,8 @@ class BeeGraphicsView(MainControlsMixin,
         self.recalc_scene_rect() # 重新计算场景矩形
         # It seems to be more reliable when we fit a second time
         # Sometimes a changing scene rect can mess up the fitting
-        self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio) 
+        self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio) # 适合矩形，保持纵横比
+        self.recalc_scene_rect() # 重新计算场景矩形
         logger.trace('Fit view done')
 
     def get_confirmation_unsaved_changes(self, msg):
