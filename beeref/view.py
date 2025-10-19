@@ -218,216 +218,214 @@ class BeeGraphicsView(MainControlsMixin,
         self.recalc_scene_rect() # 重新计算场景矩形
         logger.trace('Fit view done')
 
-    def get_confirmation_unsaved_changes(self, msg):
-        confirm = self.settings.valueOrDefault('Save/confirm_close_unsaved')
-        if confirm and not self.undo_stack.isClean():
-            answer = QtWidgets.QMessageBox.question(
+    def get_confirmation_unsaved_changes(self, msg): # 获取未保存更改确认
+        confirm = self.settings.valueOrDefault('Save/confirm_close_unsaved')# 获取是否确认关闭未保存更改
+        if confirm and not self.undo_stack.isClean(): # 如果确认关闭未保存更改且撤销栈不为干净状态
+            answer = QtWidgets.QMessageBox.question( # 获取未保存更改确认
                 self,
-                'Discard unsaved changes?',
+                'Discard unsaved changes?', # 确认关闭未保存更改标题
                 msg,
-                QtWidgets.QMessageBox.StandardButton.Yes |
-                QtWidgets.QMessageBox.StandardButton.Cancel)
+                QtWidgets.QMessageBox.StandardButton.Yes | 
+                QtWidgets.QMessageBox.StandardButton.Cancel) 
             return answer == QtWidgets.QMessageBox.StandardButton.Yes
 
         return True
 
-    def on_action_new_scene(self):
-        confirm = self.get_confirmation_unsaved_changes(
-            'There are unsaved changes. '
-            'Are you sure you want to open a new scene?')
-        if confirm:
-            self.clear_scene()
+    def on_action_new_scene(self): # 新建场景槽函数
+        confirm = self.get_confirmation_unsaved_changes( # 获取新建场景确认
+            'There are unsaved changes. ' # 确认关闭未保存更改消息
+            'Are you sure you want to open a new scene?') # 确认新建场景消息
+        if confirm: # 如果确认新建场景
+            self.clear_scene() # 清除场景
 
-    def on_action_fit_scene(self):
-        self.fit_rect(self.scene.itemsBoundingRect())
+    def on_action_fit_scene(self): # 适合场景槽函数
+        self.fit_rect(self.scene.itemsBoundingRect()) # 适合场景矩形
 
-    def on_action_fit_selection(self):
-        self.fit_rect(self.scene.itemsBoundingRect(selection_only=True))
+    def on_action_fit_selection(self): # 适合选择槽函数
+        self.fit_rect(self.scene.itemsBoundingRect(selection_only=True)) # 适合选择矩形 
 
-    def on_action_fullscreen(self, checked):
-        if checked:
-            self.parent.showFullScreen()
+    def on_action_fullscreen(self, checked): # 全屏槽函数
+        if checked: # 如果选中全屏
+            self.parent.showFullScreen() # 显示全屏
         else:
-            self.parent.showNormal()
+            self.parent.showNormal() # 显示正常 
 
-    def on_action_always_on_top(self, checked):
-        self.parent.setWindowFlag(
-            Qt.WindowType.WindowStaysOnTopHint, on=checked)
-        self.parent.destroy()
-        self.parent.create()
-        self.parent.show()
+    def on_action_always_on_top(self, checked): # 总是置顶槽函数
+        self.parent.setWindowFlag( # 设置窗口标志
+            Qt.WindowType.WindowStaysOnTopHint, on=checked) # 设置窗口置顶标志
+        self.parent.destroy() # 销毁窗口
+        self.parent.create() # 创建窗口
+        self.parent.show() # 显示窗口
 
-    def on_action_show_scrollbars(self, checked):
-        if checked:
-            self.setHorizontalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            self.setVerticalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        else:
-            self.setHorizontalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            self.setVerticalScrollBarPolicy(
-                Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    def on_action_show_scrollbars(self, checked): # 显示滚动条槽函数
+        if checked: # 如果选中显示滚动条
+            self.setHorizontalScrollBarPolicy( # 设置水平滚动条策略
+                Qt.ScrollBarPolicy.ScrollBarAsNeeded) # 设置水平滚动条为按需显示
+            self.setVerticalScrollBarPolicy( # 设置垂直滚动条策略
+                Qt.ScrollBarPolicy.ScrollBarAsNeeded) # 设置垂直滚动条为按需显示
+        else: # 如果未选中显示滚动条
+            self.setHorizontalScrollBarPolicy( # 设置水平滚动条策略
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff) # 设置水平滚动条为始终关闭
+            self.setVerticalScrollBarPolicy( # 设置垂直滚动条策略
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff) # 设置垂直滚动条为始终关闭
 
-    def on_action_show_menubar(self, checked):
-        if checked:
-            self.parent.setMenuBar(self.create_menubar())
-        else:
-            self.parent.setMenuBar(None)
+    def on_action_show_menubar(self, checked): # 显示菜单条槽函数
+        if checked: # 如果选中显示菜单条
+            self.parent.setMenuBar(self.create_menubar()) # 设置菜单条为创建的菜单条
+        else: # 如果未选中显示菜单条
+            self.parent.setMenuBar(None) # 设置菜单条为 None
 
-    def on_action_show_titlebar(self, checked):
-        self.parent.setWindowFlag(
-            Qt.WindowType.FramelessWindowHint, on=not checked)
-        self.parent.destroy()
-        self.parent.create()
-        self.parent.show()
+    def on_action_show_titlebar(self, checked): # 显示标题栏槽函数
+        self.parent.setWindowFlag( # 设置窗口标志
+            Qt.WindowType.FramelessWindowHint, on=not checked) # 设置窗口无框架标志
+        self.parent.destroy() # 销毁窗口
+        self.parent.create() # 创建窗口
+        self.parent.show() # 显示窗口   
 
-    def on_action_move_window(self):
-        if self.welcome_overlay.isHidden():
-            self.on_action_movewin_mode()
-        else:
-            self.welcome_overlay.on_action_movewin_mode()
+    def on_action_move_window(self): # 移动窗口槽函数
+        if self.welcome_overlay.isHidden(): # 如果欢迎覆盖层隐藏
+            self.on_action_movewin_mode() # 执行移动窗口模式
+        else: # 如果欢迎覆盖层显示
+            self.welcome_overlay.on_action_movewin_mode() # 执行欢迎覆盖层移动窗口模式  
 
-    def on_action_undo(self):
-        logger.debug('Undo: %s' % self.undo_stack.undoText())
+    def on_action_undo(self): # 撤销槽函数
+        logger.debug('Undo: %s' % self.undo_stack.undoText()) # 调试输出撤销文本
         self.cancel_active_modes()
         self.undo_stack.undo()
 
-    def on_action_redo(self):
-        logger.debug('Redo: %s' % self.undo_stack.redoText())
+    def on_action_redo(self): # 重做槽函数
+        logger.debug('Redo: %s' % self.undo_stack.redoText()) # 调试输出重做文本
         self.cancel_active_modes()
         self.undo_stack.redo()
 
-    def on_action_select_all(self):
-        self.scene.select_all_items()
+    def on_action_select_all(self): # 选择所有槽函数
+        self.scene.select_all_items() # 选择所有项
 
-    def on_action_deselect_all(self):
-        self.scene.deselect_all_items()
+    def on_action_deselect_all(self): # 取消选择所有槽函数
+        self.scene.deselect_all_items() # 取消选择所有项
 
-    def on_action_delete_items(self):
-        logger.debug('Deleting items...')
-        self.cancel_active_modes()
-        self.undo_stack.push(
-            commands.DeleteItems(
-                self.scene, self.scene.selectedItems(user_only=True)))
+    def on_action_delete_items(self): # 删除项槽函数
+        logger.debug('Deleting items...') # 调试输出删除项消息
+        self.cancel_active_modes() # 取消活动模式
+        self.undo_stack.push( # 推送撤销栈
+            commands.DeleteItems( # 删除项命令
+                self.scene, self.scene.selectedItems(user_only=True))) # 删除用户选择的项
 
-    def on_action_cut(self):
-        logger.debug('Cutting items...')
-        self.on_action_copy()
-        self.undo_stack.push(
-            commands.DeleteItems(
-                self.scene, self.scene.selectedItems(user_only=True)))
+    def on_action_cut(self): # 剪切槽函数
+        logger.debug('Cutting items...') # 调试输出剪切项消息
+        self.on_action_copy() # 执行复制操作
+        self.undo_stack.push( # 推送撤销栈
+            commands.DeleteItems( # 删除项命令
+                self.scene, self.scene.selectedItems(user_only=True))) # 删除用户选择的项
 
-    def on_action_raise_to_top(self):
-        self.scene.raise_to_top()
+    def on_action_raise_to_top(self): #  Bring to Front槽函数
+        self.scene.raise_to_top() #  Bring to Front项
 
-    def on_action_lower_to_bottom(self):
-        self.scene.lower_to_bottom()
+    def on_action_lower_to_bottom(self): #  Send to Back槽函数
+        self.scene.lower_to_bottom() #  Send to Back项
 
-    def on_action_normalize_height(self):
-        self.scene.normalize_height()
+    def on_action_normalize_height(self): # 归一化高度槽函数
+        self.scene.normalize_height() # 归一化高度
 
-    def on_action_normalize_width(self):
-        self.scene.normalize_width()
+    def on_action_normalize_width(self): # 归一化宽度槽函数
+        self.scene.normalize_width() # 归一化宽度
 
-    def on_action_normalize_size(self):
-        self.scene.normalize_size()
+    def on_action_normalize_size(self): # 归一化大小槽函数
+        self.scene.normalize_size() # 归一化大小    
 
-    def on_action_arrange_horizontal(self):
-        self.scene.arrange()
+    def on_action_arrange_horizontal(self): # 水平排列槽函数
+        self.scene.arrange() # 水平排列项
 
-    def on_action_arrange_vertical(self):
-        self.scene.arrange(vertical=True)
+    def on_action_arrange_vertical(self): # 垂直排列槽函数
+        self.scene.arrange(vertical=True) # 垂直排列项
 
-    def on_action_arrange_optimal(self):
-        self.scene.arrange_optimal()
+    def on_action_arrange_optimal(self): # 最优排列槽函数
+        self.scene.arrange_optimal() # 最优排列项
 
-    def on_action_arrange_square(self):
-        self.scene.arrange_square()
+    def on_action_arrange_square(self): # 方排列槽函数
+        self.scene.arrange_square() # 方排列项
 
-    def on_action_change_opacity(self):
-        images = list(filter(
-            lambda item: item.is_image,
-            self.scene.selectedItems(user_only=True)))
-        widgets.ChangeOpacityDialog(self, images, self.undo_stack)
+    def on_action_change_opacity(self): # 改变不透明度槽函数        
+        images = list(filter( # 过滤出用户选择的图像项
+            lambda item: item.is_image, # 过滤出图像项
+            self.scene.selectedItems(user_only=True))) # 过滤出用户选择的图像项
+        widgets.ChangeOpacityDialog(self, images, self.undo_stack) # 显示改变不透明度对话框 
 
-    def on_action_grayscale(self, checked):
-        images = list(filter(
-            lambda item: item.is_image,
-            self.scene.selectedItems(user_only=True)))
+    def on_action_grayscale(self, checked): # 灰度槽函数
+        images = list(filter( # 过滤出用户选择的图像项
+            lambda item: item.is_image, # 过滤出图像项
+            self.scene.selectedItems(user_only=True))) # 过滤出用户选择的图像项
         if images:
             self.undo_stack.push(
-                commands.ToggleGrayscale(images, checked))
+                commands.ToggleGrayscale(images, checked)) # 推送撤销栈，执行切换灰度命令
 
-    def on_action_crop(self):
-        self.scene.crop_items()
+    def on_action_crop(self): # 裁剪槽函数
+        self.scene.crop_items() # 裁剪项        
 
-    def on_action_flip_horizontally(self):
-        self.scene.flip_items(vertical=False)
+    def on_action_flip_horizontally(self): # 水平翻转槽函数
+        self.scene.flip_items(vertical=False) # 水平翻转项  
 
-    def on_action_flip_vertically(self):
-        self.scene.flip_items(vertical=True)
+    def on_action_flip_vertically(self): # 垂直翻转槽函数
+        self.scene.flip_items(vertical=True) # 垂直翻转项  
 
-    def on_action_reset_scale(self):
-        self.cancel_active_modes()
-        self.undo_stack.push(commands.ResetScale(
-            self.scene.selectedItems(user_only=True)))
+    def on_action_reset_scale(self): # 重置缩放槽函数
+        self.cancel_active_modes() # 取消活动模式
+        self.undo_stack.push(commands.ResetScale( # 推送撤销栈，执行重置缩放命令   
+            self.scene.selectedItems(user_only=True))) # 推送撤销栈，执行重置缩放命令   
+    def on_action_reset_rotation(self): # 重置旋转槽函数
+        self.cancel_active_modes() # 取消活动模式
+        self.undo_stack.push(commands.ResetRotation( # 推送撤销栈，执行重置旋转命令   
+            self.scene.selectedItems(user_only=True))) # 推送撤销栈，执行重置旋转命令   
 
-    def on_action_reset_rotation(self):
-        self.cancel_active_modes()
-        self.undo_stack.push(commands.ResetRotation(
-            self.scene.selectedItems(user_only=True)))
-
-    def on_action_reset_flip(self):
-        self.cancel_active_modes()
-        self.undo_stack.push(commands.ResetFlip(
-            self.scene.selectedItems(user_only=True)))
-
-    def on_action_reset_crop(self):
-        self.cancel_active_modes()
-        self.undo_stack.push(commands.ResetCrop(
-            self.scene.selectedItems(user_only=True)))
+    def on_action_reset_flip(self): # 重置翻转槽函数
+        self.cancel_active_modes() # 取消活动模式
+        self.undo_stack.push(commands.ResetFlip( # 推送撤销栈，执行重置翻转命令   
+            self.scene.selectedItems(user_only=True))) # 推送撤销栈，执行重置翻转命令   
+    def on_action_reset_crop(self): # 重置裁剪槽函数
+        self.cancel_active_modes() # 取消活动模式
+        self.undo_stack.push(commands.ResetCrop( # 推送撤销栈，执行重置裁剪命令   
+            self.scene.selectedItems(user_only=True))) # 推送撤销栈，执行重置裁剪命令   
 
     def on_action_reset_transforms(self):
-        self.cancel_active_modes()
-        self.undo_stack.push(commands.ResetTransforms(
-            self.scene.selectedItems(user_only=True)))
+        self.cancel_active_modes() # 取消活动模式
+        self.undo_stack.push(commands.ResetTransforms( # 推送撤销栈，执行重置变换命令   
+            self.scene.selectedItems(user_only=True))) # 推送撤销栈，执行重置变换命令       
 
-    def on_action_show_color_gamut(self):
-        widgets.color_gamut.GamutDialog(self, self.scene.selectedItems()[0])
+    def on_action_show_color_gamut(self): # 显示颜色 gamut 槽函数
+        widgets.color_gamut.GamutDialog(self, self.scene.selectedItems()[0]) # 显示颜色 gamut 对话框    
 
-    def on_action_sample_color(self):
-        self.cancel_active_modes()
-        logger.debug('Entering sample color mode')
-        self.viewport().setCursor(Qt.CursorShape.CrossCursor)
-        self.active_mode = self.SAMPLE_COLOR_MODE
+    def on_action_sample_color(self): # 采样颜色槽函数
+        self.cancel_active_modes() # 取消活动模式
+        logger.debug('Entering sample color mode') # 调试输出采样颜色消息
+        self.viewport().setCursor(Qt.CursorShape.CrossCursor) # 设置鼠标光标为十字光标
+        self.active_mode = self.SAMPLE_COLOR_MODE # 设置活动模式为采样颜色模式  
 
-        if self.scene.has_multi_selection():
+        if self.scene.has_multi_selection(): # 如果有多个选择项
             # We don't want to sample the multi select item, so
             # temporarily send it to the back:
-            self.scene.multi_select_item.lower_behind_selection()
+            self.scene.multi_select_item.lower_behind_selection() # 临时将多选项发送到后台
 
-        pos = self.mapFromGlobal(self.cursor().pos())
+        pos = self.mapFromGlobal(self.cursor().pos()) # 获取鼠标光标在场景中的位置
         self.sample_color_widget = widgets.SampleColorWidget(
             self,
             pos,
-            self.scene.sample_color_at(self.mapToScene(pos)))
+            self.scene.sample_color_at(self.mapToScene(pos))) # 创建采样颜色小部件  
 
-    def on_items_loaded(self, value):
-        logger.debug('On items loaded: add queued items')
-        self.scene.add_queued_items()
+    def on_items_loaded(self, value): # 加载项槽函数
+        logger.debug('On items loaded: add queued items') # 调试输出加载项消息
+        self.scene.add_queued_items() # 添加队列中的项
 
-    def on_loading_finished(self, filename, errors):
-        if errors:
-            QtWidgets.QMessageBox.warning(
+    def on_loading_finished(self, filename, errors): # 加载完成槽函数
+        if errors: # 如果有错误
+            QtWidgets.QMessageBox.warning( # 显示警告对话框
                 self,
                 'Problem loading file',
                 ('<p>Problem loading file %s</p>'
-                 '<p>Not accessible or not a proper bee file</p>') % filename)
+                 '<p>Not accessible or not a proper bee file</p>') % filename) # 显示警告对话框，提示文件不可访问或不是 proper bee 文件
         else:
-            self.filename = filename
-            self.scene.add_queued_items()
-            self.on_action_fit_scene()
+            self.filename = filename # 设置文件名
+            self.scene.add_queued_items() # 添加队列中的项
+            self.on_action_fit_scene() # 拟合场景   
 
     def on_action_open_recent_file(self, filename):
         confirm = self.get_confirmation_unsaved_changes(
