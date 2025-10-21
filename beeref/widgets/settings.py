@@ -29,7 +29,7 @@ from beeref.config import BeeSettings, settings_events  # 导入设置管理类�
 # 初始化日志记录器，命名为当前模块名
 logger = logging.getLogger(__name__)
 
-
+# 定义设置项分组的基类
 class GroupBase(QtWidgets.QGroupBox):
     """设置项分组的基类，继承自QGroupBox（UI分组容器）
     
@@ -38,7 +38,7 @@ class GroupBase(QtWidgets.QGroupBox):
     - HELPTEXT: 分组帮助文本（可选）
     - KEY: 关联的配置键（对应BeeSettings中的FIELDS键）
     """
-
+# 标记是否忽略值变更（用于避免递归触发）
     TITLE = None    # 分组标题（子类必须重写）
     HELPTEXT = None # 分组帮助文本（子类可重写，可选）
     KEY = None      # 关联的配置键（子类必须重写）
