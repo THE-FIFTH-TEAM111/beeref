@@ -110,7 +110,8 @@ class ActionsMixin:
             # 连接勾选状态变化信号到设置存储函数
             qaction.toggled.connect(
                 partial(self._store_checkable_setting, settings_key))
-
+    
+    # 创建所有动作
     def _create_actions(self):
         """创建所有定义在actions中的动作"""
         # 遍历所有动作定义
