@@ -17,31 +17,31 @@
 text).
 """
 
-from collections import defaultdict
-from functools import cached_property
-import logging
-import os.path
+from collections import defaultdict # 导入collections模块中的defaultdict类，用于创建默认值的字典
+from functools import cached_property # 导入functools模块中的cached_property类，用于缓存属性的计算结果
+import logging # 导入logging模块，用于记录日志
+import os.path # 导入os.path模块，用于处理文件路径
 
-from PyQt6 import QtCore, QtGui, QtWidgets
-from PyQt6.QtCore import Qt
+from PyQt6 import QtCore, QtGui, QtWidgets # 导入PyQt6模块中的QtCore、QtGui、QtWidgets类，用于处理Qt的核心功能、图形界面和小部件
+from PyQt6.QtCore import Qt # 导入PyQt6.QtCore模块中的Qt类，用于处理Qt的核心功能
 
-from beeref import commands
-from beeref.config import BeeSettings
-from beeref.constants import COLORS
-from beeref.selection import SelectableMixin
-
-
-logger = logging.getLogger(__name__)
-
-item_registry = {}
+from beeref import commands # 导入beeref模块中的commands类，用于处理用户命令
+from beeref.config import BeeSettings # 导入beeref模块中的BeeSettings类，用于处理应用程序的配置
+from beeref.constants import COLORS # 导入beeref模块中的COLORS常量，用于定义颜色
+from beeref.selection import SelectableMixin # 导入beeref模块中的SelectableMixin类，用于处理可选择的项
 
 
-def register_item(cls):
-    item_registry[cls.TYPE] = cls
-    return cls
+logger = logging.getLogger(__name__) # 创建一个日志记录器，用于记录当前模块的日志信息
+
+item_registry = {} # 创建一个空字典，用于存储注册的项类型和对应的类
 
 
-def sort_by_filename(items):
+def register_item(cls): # 定义一个函数，用于注册项类型和对应的类
+    item_registry[cls.TYPE] = cls # 将项类型作为键，对应的类作为值，存储到item_registry字典中
+    return cls # 返回注册的类，用于支持链式调用
+
+
+def sort_by_filename(items): # 定义一个函数，用于根据文件名对项进行排序
     """Order items by filename.
 
     Items with a filename (ordered by filename) first, then items
@@ -50,114 +50,114 @@ def sort_by_filename(items):
     been inserted into the scene.
     """
 
-    items_by_filename = []
-    items_by_save_id = []
-    items_remaining = []
+    items_by_filename = [] # 创建一个空列表，用于存储有文件名的项
+    items_by_save_id = [] # 创建一个空列表，用于存储有save_id的项
+    items_remaining = [] # 创建一个空列表，用于存储剩余的项
 
-    for item in items:
-        if getattr(item, 'filename', None):
-            items_by_filename.append(item)
-        elif getattr(item, 'save_id', None):
-            items_by_save_id.append(item)
+    for item in items: # 遍历所有项
+        if getattr(item, 'filename', None): # 如果项有文件名属性
+            items_by_filename.append(item) # 将项添加到有文件名的项列表中
+        elif getattr(item, 'save_id', None): # 如果项有save_id属性
+            items_by_save_id.append(item) # 将项添加到有save_id的项列表中
         else:
-            items_remaining.append(item)
+            items_remaining.append(item) # 将项添加到剩余的项列表中
 
-    items_by_filename.sort(key=lambda x: x.filename)
-    items_by_save_id.sort(key=lambda x: x.save_id)
-    return items_by_filename + items_by_save_id + items_remaining
+    items_by_filename.sort(key=lambda x: x.filename) # 对有文件名的项列表进行排序，根据文件名属性进行排序
+    items_by_save_id.sort(key=lambda x: x.save_id) # 对有save_id的项列表进行排序，根据save_id属性进行排序
+    return items_by_filename + items_by_save_id + items_remaining # 返回排序后的项列表，先有文件名的项，然后有save_id的项，最后是剩余的项
 
 
-class BeeItemMixin(SelectableMixin):
+class BeeItemMixin(SelectableMixin): # 定义一个基类，用于所有用户添加的项
     """Base for all items added by the user."""
 
-    def set_pos_center(self, pos):
+    def set_pos_center(self, pos): # 定义一个方法，用于设置项的位置，使用项的中心作为原点
         """Sets the position using the item's center as the origin point."""
 
-        self.setPos(pos - self.center_scene_coords)
+        self.setPos(pos - self.center_scene_coords) # 将项的位置设置为传入的位置减去项的中心场景坐标
 
     def has_selection_outline(self):
-        return self.isSelected()
+        return self.isSelected() # 返回项是否被选中
 
-    def has_selection_handles(self):
-        return (self.isSelected()
-                and self.scene()
-                and self.scene().has_single_selection())
+    def has_selection_handles(self): # 定义一个方法，用于判断项是否有选择句柄
+        return (self.isSelected() # 返回项是否被选中
+                and self.scene() # 返回项所属的场景
+                and self.scene().has_single_selection()) # 返回场景是否只有一个项被选中
 
-    def selection_action_items(self):
+    def selection_action_items(self): # 定义一个方法，用于返回项受选择操作影响的项列表
         """The items affected by selection actions like scaling and rotating.
         """
-        return [self]
+        return [self] # 返回项受选择操作影响的项列表，这里只有项本身
 
-    def on_selected_change(self, value):
-        if (value and self.scene()
-                and not self.scene().has_selection()
-                and not self.scene().active_mode is None):
-            self.bring_to_front()
+    def on_selected_change(self, value): # 定义一个方法，用于处理项的选中状态变化
+        if (value and self.scene() # 如果项被选中，并且项所属的场景存在
+                and not self.scene().has_selection() # 场景没有其他项被选中
+                and not self.scene().active_mode is None): # 场景没有活动模式
+            self.bring_to_front() # 将项 bring to front
 
-    def update_from_data(self, **kwargs):
-        self.save_id = kwargs.get('save_id', self.save_id)
-        self.setPos(kwargs.get('x', self.pos().x()),
-                    kwargs.get('y', self.pos().y()))
-        self.setZValue(kwargs.get('z', self.zValue()))
-        self.setScale(kwargs.get('scale', self.scale()))
-        self.setRotation(kwargs.get('rotation', self.rotation()))
-        if kwargs.get('flip', 1) != self.flip():
-            self.do_flip()
+    def update_from_data(self, **kwargs): # 定义一个方法，用于从数据更新项的属性
+        self.save_id = kwargs.get('save_id', self.save_id) # 更新项的save_id属性，使用传入的save_id值或当前值
+        self.setPos(kwargs.get('x', self.pos().x()), 
+                    kwargs.get('y', self.pos().y())) # 更新项的位置属性，使用传入的x、y值或当前值
+        self.setZValue(kwargs.get('z', self.zValue())) # 更新项的z值属性，使用传入的z值或当前值
+        self.setScale(kwargs.get('scale', self.scale())) # 更新项的缩放属性，使用传入的scale值或当前值
+        self.setRotation(kwargs.get('rotation', self.rotation())) # 更新项的旋转属性，使用传入的rotation值或当前值
+        if kwargs.get('flip', 1) != self.flip(): # 如果传入的flip值与当前值不同
+            self.do_flip() # 执行项的翻转操作
 
 
 @register_item
-class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem):
+class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个类，用于表示用户添加的图像项
     """Class for images added by the user."""
 
-    TYPE = 'pixmap'
-    CROP_HANDLE_SIZE = 15
+    TYPE = 'pixmap' # 定义项的类型为'pixmap'
+    CROP_HANDLE_SIZE = 15 # 定义项的裁剪句柄大小为15
 
-    def __init__(self, image, filename=None, **kwargs):
-        super().__init__(QtGui.QPixmap.fromImage(image))
-        self.save_id = None
-        self.filename = filename
-        self.reset_crop()
-        logger.debug(f'Initialized {self}')
-        self.is_image = True
-        self.crop_mode = False
-        self.init_selectable()
-        self.settings = BeeSettings()
-        self.grayscale = False
+    def __init__(self, image, filename=None, **kwargs): # 定义类的初始化方法，用于创建图像项
+        super().__init__(QtGui.QPixmap.fromImage(image)) # 调用父类的初始化方法，传入图像项的QPixmap对象
+        self.save_id = None # 初始化项的save_id属性为None
+        self.filename = filename # 初始化项的filename属性为传入的filename值
+        self.reset_crop() # 调用项的reset_crop方法，重置项的裁剪区域
+        logger.debug(f'Initialized {self}') # 记录项的初始化信息
+        self.is_image = True # 初始化项的is_image属性为True
+        self.crop_mode = False # 初始化项的crop_mode属性为False
+        self.init_selectable() # 调用项的init_selectable方法，初始化项的选择状态
+        self.settings = BeeSettings() # 初始化项的settings属性为BeeSettings()对象
+        self.grayscale = False # 初始化项的grayscale属性为False
 
     @classmethod
-    def create_from_data(self, **kwargs):
-        item = kwargs.pop('item')
-        data = kwargs.pop('data', {})
-        item.filename = item.filename or data.get('filename')
-        if 'crop' in data:
-            item.crop = QtCore.QRectF(*data['crop'])
-        item.setOpacity(data.get('opacity', 1))
-        item.grayscale = data.get('grayscale', False)
-        return item
+    def create_from_data(self, **kwargs): # 定义一个类方法，用于从数据创建图像项
+        item = kwargs.pop('item') # 从kwargs中弹出项对象，赋值给item变量
+        data = kwargs.pop('data', {}) # 从kwargs中弹出数据字典，赋值给data变量，默认值为空字典
+        item.filename = item.filename or data.get('filename') # 如果项的filename属性为None，或者数据字典中没有'filename'键，将项的filename属性设置为数据字典中的'filename'值
+        if 'crop' in data: # 如果数据字典中包含'crop'键
+            item.crop = QtCore.QRectF(*data['crop']) # 将项的crop属性设置为数据字典中'crop'键对应的值，使用QRectF对象表示裁剪区域
+        item.setOpacity(data.get('opacity', 1)) # 将项的不透明度属性设置为数据字典中'opacity'键对应的值，默认值为1
+        item.grayscale = data.get('grayscale', False) # 将项的grayscale属性设置为数据字典中'grayscale'键对应的值，默认值为False
+        return item # 返回创建的项对象
 
-    def __str__(self):
-        size = self.pixmap().size()
-        return (f'Image "{self.filename}" {size.width()} x {size.height()}')
+    def __str__(self): # 定义项的字符串表示方法
+        size = self.pixmap().size() # 获取项的QPixmap对象的大小
+        return (f'Image "{self.filename}" {size.width()} x {size.height()}') # 返回项的字符串表示，包含文件名和图像大小
 
     @property
-    def crop(self):
-        return self._crop
+    def crop(self): # 定义项的裁剪区域属性的getter方法
+        return self._crop # 返回项的裁剪区域属性值
 
     @crop.setter
-    def crop(self, value):
-        logger.debug(f'Setting crop for {self} to {value}')
-        self.prepareGeometryChange()
-        self._crop = value
-        self.update()
+    def crop(self, value): # 定义项的裁剪区域属性的setter方法 
+        logger.debug(f'Setting crop for {self} to {value}') # 记录项的裁剪区域属性设置信息
+        self.prepareGeometryChange() # 准备项的几何变化，通知场景项的位置、大小或旋转等属性已改变
+        self._crop = value # 更新项的裁剪区域属性值为传入的value值
+        self.update() # 更新项的显示，触发项的重绘操作
 
     @property
-    def grayscale(self):
-        return self._grayscale
+    def grayscale(self): # 定义项的灰度属性的getter方法
+        return self._grayscale # 返回项的灰度属性值
 
     @grayscale.setter
-    def grayscale(self, value):
-        logger.debug('Setting grayscale for {self} to {value}')
-        self._grayscale = value
+    def grayscale(self, value): # 定义项的灰度属性的setter方法
+        logger.debug('Setting grayscale for {self} to {value}') # 记录项的灰度属性设置信息
+        self._grayscale = value # 更新项的灰度属性值为传入的value值
         if value is True:
             # Using the grayscale image format to convert to grayscale
             # loses an image's tranparency. So the straightworward
@@ -169,12 +169,12 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem):
             # overlaps other images. The way we do it here only works
             # as long as the canvas colour is itself grayscale,
             # though.
-            img = QtGui.QImage(
+            img = QtGui.QImage( # 创建一个QImage对象，用于存储转换后的灰度图像
                 self.pixmap().size(), QtGui.QImage.Format.Format_Grayscale8)
-            img.fill(QtGui.QColor(*COLORS['Scene:Canvas']))
-            painter = QtGui.QPainter(img)
-            painter.drawPixmap(0, 0, self.pixmap())
-            painter.end()
+            img.fill(QtGui.QColor(*COLORS['Scene:Canvas'])) # 用当前场景的画布颜色填充图像的背景
+            painter = QtGui.QPainter(img) # 创建一个QPainter对象，用于绘制图像
+            painter.drawPixmap(0, 0, self.pixmap()) # 绘制项的QPixmap对象到图像上
+            painter.end() # 结束绘制操作
             self._grayscale_pixmap = QtGui.QPixmap.fromImage(img)
 
             # Alternative methods that have their own issues:
@@ -192,22 +192,22 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem):
             #
             # 3. Going through every pixel and doing it manually — bad
             # performance.
-        else:
-            self._grayscale_pixmap = None
+        else: # 如果灰度属性为False
+            self._grayscale_pixmap = None # 将项的灰度Pixmap属性设置为None
 
-        self.update()
+        self.update() # 更新项的显示，触发项的重绘操作
 
-    def sample_color_at(self, pos):
-        ipos = self.mapFromScene(pos)
-        if self.grayscale:
-            pm = self._grayscale_pixmap
-        else:
-            pm = self.pixmap()
-        img = pm.toImage()
+    def sample_color_at(self, pos): # 定义项的采样颜色方法，用于获取项在指定位置的颜色值
+        ipos = self.mapFromScene(pos) # 将场景坐标转换为项坐标
+        if self.grayscale: # 如果项的灰度属性为True
+            pm = self._grayscale_pixmap # 将项的灰度Pixmap赋值给pm变量
+        else: # 如果项的灰度属性为False
+            pm = self.pixmap() # 将项的QPixmap对象赋值给pm变量
+        img = pm.toImage() # 将项的Pixmap对象转换为QImage对象
 
-        color = img.pixelColor(int(ipos.x()), int(ipos.y()))
-        if color.alpha():
-            return color
+        color = img.pixelColor(int(ipos.x()), int(ipos.y())) # 获取图像中指定位置的颜色值
+        if color.alpha() > 0: # 如果颜色的alpha值大于0，即颜色不是完全透明的
+            return color # 返回颜色值
 
     def bounding_rect_unselected(self):
         if self.crop_mode:
