@@ -714,7 +714,7 @@ class BeeGraphicsView(MainControlsMixin,
             item = BeePixmapItem(img) # 创建图片项对象，参数为图像数据
             self.undo_stack.push(commands.InsertItems(self.scene, [item], pos)) # 插入图片项到场景中，参数为场景对象、图片项列表、插入位置
             if len(self.scene.items()) == 1: # 如果场景中只有一个项目（即插入的图片项） 
-            if len(self.scene.items()) == 1: # 
+             if len(self.scene.items()) == 1: # 
                 # This is the first image in the scene
                 self.on_action_fit_scene() # 缩放场景槽函数，将场景缩放以适应所有项目
             return
@@ -734,54 +734,54 @@ class BeeGraphicsView(MainControlsMixin,
         QtGui.QDesktopServices.openUrl(
             QtCore.QUrl.fromLocalFile(dirname)) # 打开目录路径对应的本地文件资源    
 
-    def on_selection_changed(self):
+    def on_selection_changed(self): # 选择项改变槽函数，用于处理场景中选中项的变化
         logger.debug('Currently selected items: %s',
-                     len(self.scene.selectedItems(user_only=True)))
-        self.actiongroup_set_enabled('active_when_selection',
-                                     self.scene.has_selection())
-        self.actiongroup_set_enabled('active_when_single_image',
-                                     self.scene.has_single_image_selection())
+                     len(self.scene.selectedItems(user_only=True))) # 调试日志，提示当前选中的项目数量  
+        self.actiongroup_set_enabled('active_when_selection', # 启用/禁用操作组槽函数，根据场景是否有选中项来启用/禁用操作组
+                                     self.scene.has_selection()) # 启用/禁用操作组槽函数，根据场景是否有选中项来启用/禁用操作组
+        self.actiongroup_set_enabled('active_when_single_image', # 启用/禁用操作组槽函数，根据场景是否有单个图片选中项来启用/禁用操作组
+                                     self.scene.has_single_image_selection()) # 启用/禁用操作组槽函数，根据场景是否有单个图片选中项来启用/禁用操作组
 
-        if self.scene.has_selection():
-            item = self.scene.selectedItems(user_only=True)[0]
-            grayscale = getattr(item, 'grayscale', False)
-            actions.actions['grayscale'].qaction.setChecked(grayscale)
-        self.viewport().repaint()
+        if self.scene.has_selection(): # 如果场景有选中项
+            item = self.scene.selectedItems(user_only=True)[0] # 获取场景中第一个选中项，参数为用户仅选择项 
+            grayscale = getattr(item, 'grayscale', False) # 获取选中项的灰度属性，默认值为False
+            actions.actions['grayscale'].qaction.setChecked(grayscale) # 设置灰度操作项的复选框状态，根据选中项的灰度属性来设置
+        self.viewport().repaint() # 重绘视口槽函数，用于刷新视口显示，确保选中项的灰度属性复选框状态正确显示
 
-    def on_cursor_changed(self, cursor):
-        if self.active_mode is None:
-            self.viewport().setCursor(cursor)
+    def on_cursor_changed(self, cursor): # 光标改变槽函数，用于处理场景中光标位置的变化
+        if self.active_mode is None: # 如果当前激活模式为None
+            self.viewport().setCursor(cursor) # 设置视口光标为参数cursor
 
-    def on_cursor_cleared(self):
-        if self.active_mode is None:
-            self.viewport().unsetCursor()
+    def on_cursor_cleared(self): # 光标清除槽函数，用于处理场景中光标位置的清除
+        if self.active_mode is None: # 如果当前激活模式为None
+            self.viewport().unsetCursor() # 清除视口光标    
 
-    def recalc_scene_rect(self):
+    def recalc_scene_rect(self): # 重新计算场景矩形槽函数，用于调整场景矩形以适应所有项目
         """Resize the scene rectangle so that it is always one view width
         wider than all items' bounding box at each side and one view
         width higher on top and bottom. This gives the impression of
         an infinite canvas."""
 
-        if self.previous_transform:
+        if self.previous_transform: # 如果之前有变换矩阵
             return
-        logger.trace('Recalculating scene rectangle...')
+        logger.trace('Recalculating scene rectangle...') # 跟踪日志，提示重新计算场景矩形
         try:
-            topleft = self.mapFromScene(
-                self.scene.itemsBoundingRect().topLeft())
-            topleft = self.mapToScene(QtCore.QPoint(
-                topleft.x() - self.size().width(),
-                topleft.y() - self.size().height()))
-            bottomright = self.mapFromScene(
-                self.scene.itemsBoundingRect().bottomRight())
-            bottomright = self.mapToScene(QtCore.QPoint(
-                bottomright.x() + self.size().width(),
-                bottomright.y() + self.size().height()))
-            self.setSceneRect(QtCore.QRectF(topleft, bottomright))
-        except OverflowError:
-            logger.info('Maximum scene size reached')
-        logger.trace('Done recalculating scene rectangle')
+            topleft = self.mapFromScene( # 映射场景矩形的左上角到视口坐标
+                self.scene.itemsBoundingRect().topLeft()) # 映射场景矩形的左上角到视口坐标
+            topleft = self.mapToScene(QtCore.QPoint( # 映射视口坐标的左上角到场景坐标
+                topleft.x() - self.size().width() / 2, # 减去视口宽度的一半，确保场景矩形在视口宽度的一半宽度内 
+                topleft.y() - self.size().height() / 2)) # 减去视口高度的一半，确保场景矩形在视口高度的一半高度内
+            bottomright = self.mapFromScene( # 映射场景矩形的右下角到视口坐标
+                self.scene.itemsBoundingRect().bottomRight()) # 映射场景矩形的右下角到视口坐标 
+            bottomright = self.mapToScene(QtCore.QPoint( # 映射视口坐标的右下角到场景坐标
+                bottomright.x() + self.size().width() / 2, # 加上视口宽度的一半，确保场景矩形在视口宽度的一半宽度内
+                bottomright.y() + self.size().height() / 2)) # 加上视口高度的一半，确保场景矩形在视口高度的一半高度内   
+            self.setSceneRect(QtCore.QRectF(topleft, bottomright)) # 设置场景矩形为新计算的矩形
+        except OverflowError: # 处理溢出错误，当场景矩形超出最大尺寸时触发
+            logger.info('Maximum scene size reached') # 信息日志，提示最大场景尺寸已达到
+        logger.trace('Done recalculating scene rectangle') # 跟踪日志，提示完成重新计算场景矩形 
 
-    def get_zoom_size(self, func):
+    def get_zoom_size(self, func): # 获取缩放尺寸槽函数，用于计算场景中所有项目的边界框尺寸
         """Calculates the size of all items' bounding box in the view's
         coordinates.
 
@@ -793,34 +793,34 @@ class BeeGraphicsView(MainControlsMixin,
             arguments and turns it into a number, for ex. ``min`` or ``max``.
         """
 
-        topleft = self.mapFromScene(
-            self.scene.itemsBoundingRect().topLeft())
-        bottomright = self.mapFromScene(
-            self.scene.itemsBoundingRect().bottomRight())
-        return func(bottomright.x() - topleft.x(),
-                    bottomright.y() - topleft.y())
+        topleft = self.mapFromScene( # 映射场景矩形的左上角到视口坐标
+            self.scene.itemsBoundingRect().topLeft()) # 映射场景矩形的左上角到视口坐标
+        bottomright = self.mapFromScene( # 映射场景矩形的右下角到视口坐标
+            self.scene.itemsBoundingRect().bottomRight()) # 映射场景矩形的右下角到视口坐标   
+        return func(bottomright.x() - topleft.x(), # 计算场景中所有项目的边界框宽度
+                    bottomright.y() - topleft.y()) # 计算场景中所有项目的边界框高度 
 
-    def scale(self, *args, **kwargs):
-        super().scale(*args, **kwargs)
-        self.scene.on_view_scale_change()
-        self.recalc_scene_rect()
+    def scale(self, *args, **kwargs): # 缩放槽函数，用于处理场景中项目的缩放
+        super().scale(*args, **kwargs) # 调用父类的缩放槽函数，用于处理场景中项目的缩放
+        self.scene.on_view_scale_change() # 调用场景中的视图缩放变化槽函数，用于处理场景中项目的缩放变化
+        self.recalc_scene_rect() # 重新计算场景矩形槽函数，用于调整场景矩形以适应所有项目
 
     def get_scale(self):
-        return self.transform().m11()
+        return self.transform().m11() # 返回当前变换矩阵的缩放比例因子  
 
-    def pan(self, delta):
-        if not self.scene.items():
-            logger.debug('No items in scene; ignore pan')
+    def pan(self, delta): # 平移槽函数，用于处理场景中项目的平移
+        if not self.scene.items(): # 如果场景中没有项目
+            logger.debug('No items in scene; ignore pan') # 调试日志，提示场景中没有项目，忽略平移
             return
 
-        hscroll = self.horizontalScrollBar()
-        hscroll.setValue(int(hscroll.value() + delta.x()))
-        vscroll = self.verticalScrollBar()
-        vscroll.setValue(int(vscroll.value() + delta.y()))
+        hscroll = self.horizontalScrollBar() # 获取水平滚动条
+        hscroll.setValue(int(hscroll.value() + delta.x())) # 设置水平滚动条的值为当前值加上平移量的整数部分
+        vscroll = self.verticalScrollBar() # 获取垂直滚动条
+        vscroll.setValue(int(vscroll.value() + delta.y())) # 设置垂直滚动条的值为当前值加上平移量的整数部分 
 
-    def zoom(self, delta, anchor):
-        if not self.scene.items():
-            logger.debug('No items in scene; ignore zoom')
+    def zoom(self, delta, anchor): # 缩放槽函数，用于处理场景中项目的缩放
+        if not self.scene.items(): # 如果场景中没有项目
+            logger.debug('No items in scene; ignore zoom') # 调试日志，提示场景中没有项目，忽略缩放 
             return
 
         # We calculate where the anchor is before and after the zoom
@@ -828,150 +828,150 @@ class BeeGraphicsView(MainControlsMixin,
         # We can't use QGraphicsView's AnchorUnderMouse since it
         # uses the current cursor position while we need the initial mouse
         # press position for zooming with Ctrl + Middle Drag
-        anchor = QtCore.QPoint(round(anchor.x()),
-                               round(anchor.y()))
-        ref_point = self.mapToScene(anchor)
-        if delta == 0:
-            return
-        factor = 1 + abs(delta / 1000)
-        if delta > 0:
-            if self.get_zoom_size(max) < 10000000:
-                self.scale(factor, factor)
-            else:
-                logger.debug('Maximum zoom size reached')
-                return
+        anchor = QtCore.QPoint(round(anchor.x()), # 四舍五入 anchor 的 x 坐标
+                               round(anchor.y())) # 四舍五入 anchor 的 y 坐标
+        ref_point = self.mapToScene(anchor) # 映射 anchor 到场景坐标
+        if delta == 0: # 如果缩放量为 0
+            return  # 如果缩放量为 0，忽略缩放
+        factor = 1 + abs(delta / 1000) # 计算缩放因子
+        if delta > 0: # 如果缩放量大于 0
+            if self.get_zoom_size(max) < 10000000: # 如果缩放后场景中所有项目的边界框宽度和高度都小于 10000000
+                self.scale(factor, factor) # 缩放场景中所有项目的边界框宽度和高度
+            else:  # 如果缩放后场景中所有项目的边界框宽度和高度都大于等于 10000000
+                logger.debug('Maximum zoom size reached') # 调试日志，提示最大缩放尺寸已达到
+                return # 如果缩放后场景中所有项目的边界框宽度和高度都大于等于 10000000，忽略缩放
         else:
-            if self.get_zoom_size(min) > 50:
-                self.scale(1/factor, 1/factor)
+            if self.get_zoom_size(min) > 50: # 如果缩放后场景中所有项目的边界框宽度和高度都大于 50
+                self.scale(1/factor, 1/factor) # 缩放场景中所有项目的边界框宽度和高度
             else:
-                logger.debug('Minimum zoom size reached')
-                return
+                logger.debug('Minimum zoom size reached') # 调试日志，提示最小缩放尺寸已达到
+                return # 如果缩放后场景中所有项目的边界框宽度和高度都大于 50，忽略缩放  
 
-        self.pan(self.mapFromScene(ref_point) - anchor)
-        self.reset_previous_transform()
+        self.pan(self.mapFromScene(ref_point) - anchor) # 平移场景中所有项目的边界框宽度和高度
+        self.reset_previous_transform() # 重置前一个变换矩阵，用于处理场景中项目的缩放变化
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event): # 滚轮事件槽函数，用于处理场景中项目的缩放和平移
         action, inverted\
-            = self.keyboard_settings.mousewheel_action_for_event(event)
+            = self.keyboard_settings.mousewheel_action_for_event(event) # 获取滚轮事件的缩放和平移操作
 
-        delta = event.angleDelta().y()
-        if inverted:
-            delta = delta * -1
+        delta = event.angleDelta().y() # 获取滚轮事件的缩放增量
+        if inverted: # 如果滚轮事件的缩放增量为负数
+            delta = delta * -1 # 取反缩放增量   
 
-        if action == 'zoom':
-            self.zoom(delta, event.position())
-            event.accept()
+        if action == 'zoom': # 如果滚轮事件的缩放操作
+            self.zoom(delta, event.position()) # 调用缩放槽函数，用于处理场景中项目的缩放
+            event.accept() # 接受滚轮事件，防止事件冒泡到父类
+            return 
+        if action == 'pan_horizontal': # 如果滚轮事件的水平平移操作
+            self.pan(QtCore.QPointF(0, 0.5 * delta)) # 调用平移槽函数，用于处理场景中项目的水平平移
+            event.accept() # 接受滚轮事件，防止事件冒泡到父类
             return
-        if action == 'pan_horizontal':
-            self.pan(QtCore.QPointF(0, 0.5 * delta))
-            event.accept()
-            return
-        if action == 'pan_vertical':
-            self.pan(QtCore.QPointF(0.5 * delta, 0))
-            event.accept()
-            return
-
-    def mousePressEvent(self, event):
-        if self.mousePressEventMainControls(event):
+        if action == 'pan_vertical': # 如果滚轮事件的垂直平移操作
+            self.pan(QtCore.QPointF(0.5 * delta, 0)) # 调用平移槽函数，用于处理场景中项目的垂直平移
+            event.accept() # 接受滚轮事件，防止事件冒泡到父类   
             return
 
-        if self.active_mode == self.SAMPLE_COLOR_MODE:
-            if (event.button() == Qt.MouseButton.LeftButton):
-                color = self.scene.sample_color_at(
-                    self.mapToScene(event.pos()))
-                if color:
-                    name = qcolor_to_hex(color)
-                    clipboard = QtWidgets.QApplication.clipboard()
-                    clipboard.setText(name)
-                    self.scene.internal_clipboard = []
-                    msg = f'Copied color to clipboard: {name}'
-                    logger.debug(msg)
-                    widgets.BeeNotification(self, msg)
+    def mousePressEvent(self, event): # 鼠标按下事件槽函数，用于处理场景中项目的缩放和平移
+        if self.mousePressEventMainControls(event): # 如果鼠标按下事件是主控件的事件
+            return
+
+        if self.active_mode == self.SAMPLE_COLOR_MODE: # 如果当前模式是采样颜色模式
+            if (event.button() == Qt.MouseButton.LeftButton): # 如果鼠标按下事件是左键
+                color = self.scene.sample_color_at( # 调用场景中的采样颜色函数，用于获取场景中指定位置的颜色
+                    self.mapToScene(event.pos())) # 映射鼠标按下事件的位置到场景坐标
+                if color: # 如果获取到颜色
+                    name = qcolor_to_hex(color) # 将颜色转换为十六进制字符串
+                    clipboard = QtWidgets.QApplication.clipboard() # 获取应用程序的剪贴板对象
+                    clipboard.setText(name) # 将颜色的十六进制字符串复制到剪贴板
+                    self.scene.internal_clipboard = [] # 清空场景中的内部剪贴板
+                    msg = f'Copied color to clipboard: {name}' 
+                    logger.debug(msg) # 调试日志，提示复制颜色到剪贴板
+                    widgets.BeeNotification(self, msg) # 显示通知消息，提示复制颜色到剪贴板
                 else:
-                    logger.debug('No color found')
-            self.cancel_sample_color_mode()
-            event.accept()
+                    logger.debug('No color found at %s', event.pos()) # 调试日志，提示未找到颜色
+            self.cancel_sample_color_mode() # 取消采样颜色模式
+            event.accept() # 接受鼠标按下事件，防止事件冒泡到父类
             return
 
-        action, inverted = self.keyboard_settings.mouse_action_for_event(event)
+        action, inverted = self.keyboard_settings.mouse_action_for_event(event) # 获取鼠标按下事件的缩放和平移操作
 
-        if action == 'zoom':
-            self.active_mode = self.ZOOM_MODE
-            self.event_start = event.position()
-            self.event_anchor = event.position()
-            self.event_inverted = inverted
-            event.accept()
+        if action == 'zoom': # 如果鼠标按下事件的缩放操作
+            self.active_mode = self.ZOOM_MODE # 设置当前模式为缩放模式
+            self.event_start = event.position() # 记录鼠标按下事件的位置
+            self.event_anchor = event.position() # 记录鼠标按下事件的位置
+            self.event_inverted = inverted # 记录鼠标按下事件的缩放增量是否为负数
+            event.accept() # 接受鼠标按下事件，防止事件冒泡到父类
             return
 
-        if action == 'pan':
+        if action == 'pan': # 如果鼠标按下事件的平移操作
             logger.trace('Begin pan')
-            self.active_mode = self.PAN_MODE
-            self.event_start = event.position()
-            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+            self.active_mode = self.PAN_MODE # 设置当前模式为平移模式
+            self.event_start = event.position() # 记录鼠标按下事件的位置    
+            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor) # 设置视口的光标为关闭手型光标
             # ClosedHandCursor and OpenHandCursor don't work, but I
             # don't know if that's only on my system or a general
             # problem. It works with other cursors.
-            event.accept()
+            event.accept() # 接受鼠标按下事件，防止事件冒泡到父类
             return
 
-        super().mousePressEvent(event)
+        super().mousePressEvent(event) # 调用父类的鼠标按下事件槽函数，用于处理其他鼠标按下事件
 
-    def mouseMoveEvent(self, event):
-        if self.active_mode == self.PAN_MODE:
-            self.reset_previous_transform()
-            pos = event.position()
-            self.pan(self.event_start - pos)
-            self.event_start = pos
-            event.accept()
-            return
-
-        if self.active_mode == self.ZOOM_MODE:
-            self.reset_previous_transform()
-            pos = event.position()
-            delta = (self.event_start - pos).y()
-            if self.event_inverted:
-                delta *= -1
-            self.event_start = pos
-            self.zoom(delta * 20, self.event_anchor)
-            event.accept()
+    def mouseMoveEvent(self, event): # 鼠标移动事件槽函数，用于处理场景中项目的缩放和平移
+        if self.active_mode == self.PAN_MODE: # 如果当前模式是平移模式
+            self.reset_previous_transform() # 重置前一次变换，用于处理场景中项目的缩放和平移
+            pos = event.position() # 获取鼠标移动事件的位置
+            self.pan(self.event_start - pos) # 调用平移槽函数，用于处理场景中项目的平移
+            self.event_start = pos # 更新鼠标按下事件的位置
+            event.accept() # 接受鼠标移动事件，防止事件冒泡到父类   
             return
 
-        if self.active_mode == self.SAMPLE_COLOR_MODE:
-            self.sample_color_widget.update(
-                event.position(),
-                self.scene.sample_color_at(self.mapToScene(event.pos())))
-            event.accept()
+        if self.active_mode == self.ZOOM_MODE: # 如果当前模式是缩放模式
+            self.reset_previous_transform() # 重置前一次变换，用于处理场景中项目的缩放和平移
+            pos = event.position() # 获取鼠标移动事件的位置
+            delta = (self.event_start - pos).y() # 计算鼠标移动事件的垂直增量
+            if self.event_inverted: # 如果鼠标移动事件的缩放增量为负数
+                delta *= -1 # 取反，用于处理场景中项目的缩放
+            self.event_start = pos # 更新鼠标按下事件的位置 
+            self.zoom(delta * 20, self.event_anchor) # 调用缩放槽函数，用于处理场景中项目的缩放
+            event.accept() # 接受鼠标移动事件，防止事件冒泡到父类   
             return
 
-        if self.mouseMoveEventMainControls(event):
+        if self.active_mode == self.SAMPLE_COLOR_MODE: # 如果当前模式是采样颜色模式
+            self.sample_color_widget.update( # 更新采样颜色小部件的显示
+                event.position(), # 更新采样颜色小部件的显示位置
+                self.scene.sample_color_at(self.mapToScene(event.pos()))) # 更新采样颜色小部件的显示颜色
+            event.accept() # 接受鼠标移动事件，防止事件冒泡到父类   
             return
-        super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event):
-        if self.active_mode == self.PAN_MODE:
-            logger.trace('End pan')
-            self.viewport().unsetCursor()
-            self.active_mode = None
-            event.accept()
+        if self.mouseMoveEventMainControls(event): # 如果主控件处理了鼠标移动事件
             return
-        if self.active_mode == self.ZOOM_MODE:
-            self.active_mode = None
-            event.accept()
-            return
-        if self.mouseReleaseEventMainControls(event):
-            return
-        super().mouseReleaseEvent(event)
+        super().mouseMoveEvent(event) # 调用父类的鼠标移动事件槽函数，用于处理其他鼠标移动事件
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.recalc_scene_rect()
-        self.welcome_overlay.resize(self.size())
+    def mouseReleaseEvent(self, event): # 鼠标释放事件槽函数，用于处理场景中项目的缩放和平移 
+        if self.active_mode == self.PAN_MODE: # 如果当前模式是平移模式
+            logger.trace('End pan') # 调试日志，提示结束平移
+            self.viewport().unsetCursor() # 重置视口的光标为默认光标
+            self.active_mode = None # 重置当前模式为 None
+            event.accept() # 接受鼠标释放事件，防止事件冒泡到父类   
+            return
+        if self.active_mode == self.ZOOM_MODE: # 如果当前模式是缩放模式
+            self.active_mode = None # 重置当前模式为 None
+            event.accept() # 接受鼠标释放事件，防止事件冒泡到父类   
+            return
+        if self.mouseReleaseEventMainControls(event): # 如果主控件处理了鼠标释放事件
+            return
+        super().mouseReleaseEvent(event) # 调用父类的鼠标释放事件槽函数，用于处理其他鼠标释放事件   
 
-    def keyPressEvent(self, event):
-        if self.keyPressEventMainControls(event):
+    def resizeEvent(self, event): # 场景视图的大小调整事件槽函数，用于处理场景视图的大小调整
+        super().resizeEvent(event) # 调用父类的大小调整事件槽函数，用于处理其他大小调整事件
+        self.recalc_scene_rect() # 重新计算场景矩形，用于处理场景中项目的缩放和平移
+        self.welcome_overlay.resize(self.size()) # 调整欢迎叠加层的大小，用于处理场景视图的大小调整
+
+    def keyPressEvent(self, event): # 键盘按下事件槽函数，用于处理场景中项目的缩放和平移
+        if self.keyPressEventMainControls(event): # 如果主控件处理了键盘按下事件
             return
-        if self.active_mode == self.SAMPLE_COLOR_MODE:
-            self.cancel_sample_color_mode()
-            event.accept()
+        if self.active_mode == self.SAMPLE_COLOR_MODE: # 如果当前模式是采样颜色模式
+            self.cancel_sample_color_mode() # 取消采样颜色模式
+            event.accept() # 接受键盘按下事件，防止事件冒泡到父类   
             return
-        super().keyPressEvent(event)
+        super().keyPressEvent(event) # 调用父类的键盘按下事件槽函数，用于处理其他键盘按下事件
