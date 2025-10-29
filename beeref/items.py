@@ -209,97 +209,97 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
         if color.alpha() > 0: # 如果颜色的alpha值大于0，即颜色不是完全透明的
             return color # 返回颜色值
 
-    def bounding_rect_unselected(self):
-        if self.crop_mode:
-            return QtWidgets.QGraphicsPixmapItem.boundingRect(self)
-        else:
-            return self.crop
+    def bounding_rect_unselected(self): # 定义项的未选中状态下的边界矩形方法
+        if self.crop_mode: # 如果项的裁剪模式为True
+            return QtWidgets.QGraphicsPixmapItem.boundingRect(self) # 返回项的QPixmap对象的边界矩形
+        else: # 如果项的裁剪模式为False
+            return self.crop # 返回项的裁剪区域属性值
 
-    def get_extra_save_data(self):
+    def get_extra_save_data(self): # 定义项的额外保存数据方法，用于获取项的额外保存信息
         return {'filename': self.filename,
                 'opacity': self.opacity(),
                 'grayscale': self.grayscale,
                 'crop': [self.crop.topLeft().x(),
                          self.crop.topLeft().y(),
                          self.crop.width(),
-                         self.crop.height()]}
+                         self.crop.height()]} # 返回项的裁剪区域属性值的列表，包含左上角的x、y坐标、宽度和高度
 
-    def get_filename_for_export(self, imgformat, save_id_default=None):
-        save_id = self.save_id or save_id_default
-        assert save_id is not None
+    def get_filename_for_export(self, imgformat, save_id_default=None): # 定义项的导出文件名方法，用于获取项导出时的文件名
+        save_id = self.save_id or save_id_default # 如果项的保存ID为None，则使用默认值
+        assert save_id is not None # 断言项的保存ID不为None
 
-        if self.filename:
-            basename = os.path.splitext(os.path.basename(self.filename))[0]
-            return f'{save_id:04}-{basename}.{imgformat}'
+        if self.filename: # 如果项的文件名属性不为None
+            basename = os.path.splitext(os.path.basename(self.filename))[0] # 从项的文件名属性中提取文件名部分，不包含扩展名
+            return f'{save_id:04}-{basename}.{imgformat}' # 返回导出文件名，格式为"{save_id:04}-{basename}.{imgformat}"，其中save_id为项的保存ID，basename为项的文件名部分，imgformat为导出的图像格式
         else:
-            return f'{save_id:04}.{imgformat}'
+            return f'{save_id:04}.{imgformat}' # 返回导出文件名，格式为"{save_id:04}.{imgformat}"，其中save_id为项的保存ID，imgformat为导出的图像格式
 
-    def get_imgformat(self, img):
+    def get_imgformat(self, img): # 定义项的图像格式方法，用于根据图像属性确定存储格式
         """Determines the format for storing this image."""
 
-        formt = self.settings.valueOrDefault('Items/image_storage_format')
+        formt = self.settings.valueOrDefault('Items/image_storage_format') # 从项的设置中获取图像存储格式选项，默认值为'best'
 
-        if formt == 'best':
+        if formt == 'best': # 如果图像存储格式选项为'best'
             # Images with alpha channel and small images are stored as png
-            if (img.hasAlphaChannel()
-                    or (img.height() < 500 and img.width() < 500)):
-                formt = 'png'
+            if (img.hasAlphaChannel() # 如果图像有alpha通道
+                    or (img.height() < 500 and img.width() < 500)): # 如果图像高度或宽度小于500像素
+                formt = 'png' # 如果图像有alpha通道或高度或宽度小于500像素，则存储为png格式
             else:
-                formt = 'jpg'
+                formt = 'jpg' # 如果图像没有alpha通道且高度和宽度都大于等于500像素，则存储为jpg格式
 
-        logger.debug(f'Found format {formt} for {self}')
-        return formt
+        logger.debug(f'Found format {formt} for {self}') # 记录调试信息，显示项的图像存储格式选项和项的文件名属性
+        return formt # 返回项的图像存储格式选项
 
-    def pixmap_to_bytes(self, apply_grayscale=False, apply_crop=False):
+    def pixmap_to_bytes(self, apply_grayscale=False, apply_crop=False): # 定义项的Pixmap转换为字节字符串方法，用于将项的Pixmap数据转换为PNG格式的字节字符串
         """Convert the pixmap data to PNG bytestring."""
-        barray = QtCore.QByteArray()
-        buffer = QtCore.QBuffer(barray)
-        buffer.open(QtCore.QIODevice.OpenModeFlag.WriteOnly)
+        barray = QtCore.QByteArray() # 创建一个空的QByteArray对象，用于存储转换后的字节字符串
+        buffer = QtCore.QBuffer(barray) # 创建一个QBuffer对象，将barray作为参数传入，用于将Pixmap数据写入字节字符串
+        buffer.open(QtCore.QIODevice.OpenModeFlag.WriteOnly) # 以只写模式打开QBuffer对象，用于将Pixmap数据写入字节字符串
         if apply_grayscale and self.grayscale:
-            pm = self._grayscale_pixmap
+            pm = self._grayscale_pixmap # 如果应用灰度属性为True且项的灰度属性为True，则将项的灰度Pixmap赋值给pm变量
         else:
-            pm = self.pixmap()
+            pm = self.pixmap() # 如果应用灰度属性为False或项的灰度属性为False，则将项的QPixmap对象赋值给pm变量
 
-        if apply_crop:
-            pm = pm.copy(self.crop.toRect())
+        if apply_crop: # 如果应用裁剪属性为True
+            pm = pm.copy(self.crop.toRect()) # 将项的Pixmap对象裁剪为指定区域，赋值给pm变量
 
-        img = pm.toImage()
-        imgformat = self.get_imgformat(img)
-        img.save(buffer, imgformat.upper(), quality=90)
-        return (barray.data(), imgformat)
+        img = pm.toImage() # 将项的Pixmap对象转换为QImage对象
+        imgformat = self.get_imgformat(img) # 根据图像属性确定存储格式
+        img.save(buffer, imgformat.upper(), quality=90) # 将图像保存到QBuffer对象中，格式为PNG，质量为90
+        return (barray.data(), imgformat) # 返回转换后的字节字符串和图像格式
 
-    def setPixmap(self, pixmap):
-        super().setPixmap(pixmap)
-        self.reset_crop()
+    def setPixmap(self, pixmap): # 定义项的Pixmap设置方法，用于设置项的Pixmap对象
+        super().setPixmap(pixmap) # 调用父类的setPixmap方法，将项的Pixmap对象设置为传入的Pixmap对象
+        self.reset_crop() # 调用项的重置裁剪方法，将项的裁剪区域属性值重置为默认值
 
-    def pixmap_from_bytes(self, data):
+    def pixmap_from_bytes(self, data): # 定义项的Pixmap从字节字符串设置方法，用于将项的Pixmap数据从PNG格式的字节字符串中设置
         """Set image pimap from a bytestring."""
-        pixmap = QtGui.QPixmap()
-        pixmap.loadFromData(data)
-        self.setPixmap(pixmap)
+        pixmap = QtGui.QPixmap() # 创建一个空的QPixmap对象，用于存储从字节字符串中加载的Pixmap数据
+        pixmap.loadFromData(data) # 从字节字符串中加载Pixmap数据到QPixmap对象中
+        self.setPixmap(pixmap) # 将项的Pixmap对象设置为加载的Pixmap对象
 
-    def create_copy(self):
-        item = BeePixmapItem(QtGui.QImage(), self.filename)
-        item.setPixmap(self.pixmap())
-        item.setPos(self.pos())
-        item.setZValue(self.zValue())
-        item.setScale(self.scale())
-        item.setRotation(self.rotation())
-        item.setOpacity(self.opacity())
-        item.grayscale = self.grayscale
+    def create_copy(self): # 定义项的复制方法，用于创建项的副本
+        item = BeePixmapItem(QtGui.QImage(), self.filename) # 创建一个空的Pixmap项对象，用于存储复制的Pixmap数据
+        item.setPixmap(self.pixmap()) # 将项的Pixmap对象复制到新创建的Pixmap项对象中
+        item.setPos(self.pos()) # 将项的位置属性值复制到新创建的Pixmap项对象中
+        item.setZValue(self.zValue()) # 将项的Z值属性值复制到新创建的Pixmap项对象中
+        item.setScale(self.scale()) # 将项的缩放属性值复制到新创建的Pixmap项对象中
+        item.setRotation(self.rotation()) # 将项的旋转属性值复制到新创建的Pixmap项对象中
+        item.setOpacity(self.opacity()) # 将项的不透明度属性值复制到新创建的Pixmap项对象中
+        item.grayscale = self.grayscale # 将项的灰度属性值复制到新创建的Pixmap项对象中
         if self.flip() == -1:
-            item.do_flip()
-        item.crop = self.crop
-        return item
+            item.do_flip() # 如果项的翻转属性值为-1，则调用项的翻转方法，将项的Pixmap对象水平翻转
+        item.crop = self.crop # 将项的裁剪区域属性值复制到新创建的Pixmap项对象中
+        return item # 返回新创建的Pixmap项对象
 
-    @cached_property
-    def color_gamut(self):
-        logger.debug(f'Calculating color gamut for {self}')
-        gamut = defaultdict(int)
-        img = self.pixmap().toImage()
+    @cached_property 
+    def color_gamut(self): # 定义项的颜色 Gamut 计算方法，用于计算项的颜色 Gamut
+        logger.debug(f'Calculating color gamut for {self}') # 记录调试信息，显示项的颜色 Gamut 计算方法和项的文件名属性
+        gamut = defaultdict(int) # 创建一个默认值为整数的字典对象，用于存储项的颜色 Gamut 值
+        img = self.pixmap().toImage() # 将项的Pixmap对象转换为QImage对象
         # Don't evaluate every pixel for larger images:
-        step = max(1, int(max(img.width(), img.height()) / 1000))
-        logger.debug(f'Considering every {step}. row/column')
+        step = max(1, int(max(img.width(), img.height()) / 1000)) # 计算步长，用于减少计算量，避免处理过大的图像
+        logger.debug(f'Considering every {step}. row/column') # 记录调试信息，显示项的颜色 Gamut 计算方法和项的文件名属性
 
         # Not actually faster than solution below :(
         # ptr = img.bits()
@@ -314,137 +314,137 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
         #         rgb = QtGui.QColor(r, g, b)
         #         gamut[rgb.hue(), rgb.saturation()] += 1
 
-        for i in range(0, img.width(), step):
-            for j in range(0, img.height(), step):
-                rgb = img.pixelColor(i, j)
-                rgbtuple = (rgb.red(), rgb.blue(), rgb.green())
-                if (5 < rgb.alpha()
-                        and min(rgbtuple) < 250 and max(rgbtuple) > 5):
+        for i in range(0, img.width(), step):# 遍历图像的每一行，步长为step
+            for j in range(0, img.height(), step):# 遍历图像的每一列，步长为step
+                rgb = img.pixelColor(i, j) # 获取图像在(i, j)位置的像素颜色
+                rgbtuple = (rgb.red(), rgb.blue(), rgb.green()) # 将像素颜色转换为RGB元组
+                if (5 < rgb.alpha() # 如果像素的alpha值大于5
+                        and min(rgbtuple) < 250 and max(rgbtuple) > 5): # 如果像素的RGB值都在5到250之间，且不是接近透明、白色或黑色
                     # Only consider pixels that aren't close to
                     # transparent, white or black
-                    gamut[rgb.hue(), rgb.saturation()] += 1
+                    gamut[rgb.hue(), rgb.saturation()] += 1 # 如果像素的RGB值都在5到250之间，且不是接近透明、白色或黑色，则将像素的Hue值和Saturation值作为键，将1作为值，添加到颜色 Gamut 字典中
 
-        logger.debug(f'Got {len(gamut)} color gamut values')
-        return gamut
+        logger.debug(f'Got {len(gamut)} color gamut values') # 记录调试信息，显示项的颜色 Gamut 计算方法和项的文件名属性
+        return gamut # 返回项的颜色 Gamut 字典对象
 
-    def copy_to_clipboard(self, clipboard):
-        clipboard.setPixmap(self.pixmap())
+    def copy_to_clipboard(self, clipboard): # 定义项的复制到剪贴板方法，用于将项的Pixmap数据复制到剪贴板中
+        clipboard.setPixmap(self.pixmap()) # 将项的Pixmap对象复制到剪贴板中
 
     def reset_crop(self):
         self.crop = QtCore.QRectF(
-            0, 0, self.pixmap().size().width(), self.pixmap().size().height())
+            0, 0, self.pixmap().size().width(), self.pixmap().size().height()) # 将项的裁剪区域属性值重置为默认值，即整个Pixmap图像
 
     @property
-    def crop_handle_size(self):
-        return self.fixed_length_for_viewport(self.CROP_HANDLE_SIZE)
+    def crop_handle_size(self): # 定义项的裁剪区域句柄大小属性方法，用于计算项的裁剪区域句柄大小
+        return self.fixed_length_for_viewport(self.CROP_HANDLE_SIZE) # 返回项的裁剪区域句柄大小属性值，根据当前视口大小进行缩放
 
-    def crop_handle_topleft(self):
-        topleft = self.crop_temp.topLeft()
-        return QtCore.QRectF(
+    def crop_handle_topleft(self): # 定义项的裁剪区域句柄左上角方法，用于计算项的裁剪区域句柄左上角位置
+        topleft = self.crop_temp.topLeft() # 获取项的裁剪区域临时属性值的左上角位置
+        return QtCore.QRectF( # 返回项的裁剪区域句柄左上角位置的矩形对象
             topleft.x(),
             topleft.y(),
             self.crop_handle_size,
-            self.crop_handle_size)
+            self.crop_handle_size) # 返回项的裁剪区域句柄左上角位置的矩形对象，宽度和高度都等于项的裁剪区域句柄大小属性值
 
-    def crop_handle_bottomleft(self):
-        bottomleft = self.crop_temp.bottomLeft()
-        return QtCore.QRectF(
+    def crop_handle_bottomleft(self): # 定义项的裁剪区域句柄左下角方法，用于计算项的裁剪区域句柄左下角位置
+        bottomleft = self.crop_temp.bottomLeft() # 获取项的裁剪区域临时属性值的左下角位置
+        return QtCore.QRectF( # 返回项的裁剪区域句柄左下角位置的矩形对象
             bottomleft.x(),
             bottomleft.y() - self.crop_handle_size,
             self.crop_handle_size,
             self.crop_handle_size)
 
-    def crop_handle_bottomright(self):
-        bottomright = self.crop_temp.bottomRight()
-        return QtCore.QRectF(
+    def crop_handle_bottomright(self): # 定义项的裁剪区域句柄右下角方法，用于计算项的裁剪区域句柄右下角位置
+        bottomright = self.crop_temp.bottomRight() # 获取项的裁剪区域临时属性值的右下角位置
+        return QtCore.QRectF( # 返回项的裁剪区域句柄右下角位置的矩形对象
             bottomright.x() - self.crop_handle_size,
             bottomright.y() - self.crop_handle_size,
             self.crop_handle_size,
             self.crop_handle_size)
 
-    def crop_handle_topright(self):
-        topright = self.crop_temp.topRight()
-        return QtCore.QRectF(
+    def crop_handle_topright(self): # 定义项的裁剪区域句柄右上角方法，用于计算项的裁剪区域句柄右上角位置
+        topright = self.crop_temp.topRight() # 获取项的裁剪区域临时属性值的右上角位置
+        return QtCore.QRectF( # 返回项的裁剪区域句柄右上角位置的矩形对象
             topright.x() - self.crop_handle_size,
             topright.y(),
             self.crop_handle_size,
             self.crop_handle_size)
 
-    def crop_handles(self):
-        return (self.crop_handle_topleft,
-                self.crop_handle_bottomleft,
-                self.crop_handle_bottomright,
-                self.crop_handle_topright)
+    def crop_handles(self): # 定义项的裁剪区域句柄方法，用于返回项的裁剪区域句柄列表
+        return (self.crop_handle_topleft, # 返回项的裁剪区域句柄左上角方法
+                self.crop_handle_bottomleft, # 返回项的裁剪区域句柄左下角方法
+                self.crop_handle_bottomright, # 返回项的裁剪区域句柄右下角方法
+                self.crop_handle_topright) # 返回项的裁剪区域句柄右上角方法
 
-    def crop_edge_top(self):
-        topleft = self.crop_temp.topLeft()
-        return QtCore.QRectF(
-            topleft.x() + self.crop_handle_size,
-            topleft.y(),
-            self.crop_temp.width() - 2 * self.crop_handle_size,
-            self.crop_handle_size)
+    def crop_edge_top(self): # 定义项的裁剪区域顶部边缘方法，用于计算项的裁剪区域顶部边缘位置
+        topleft = self.crop_temp.topLeft() # 获取项的裁剪区域临时属性值的顶部边缘位置
+        return QtCore.QRectF( # 返回项的裁剪区域顶部边缘位置的矩形对象
+            topleft.x() + self.crop_handle_size, # 顶部边缘位置的横坐标等于项的裁剪区域句柄大小属性值加上项的裁剪区域临时属性值的顶部边缘位置的横坐标
+            topleft.y(), # 顶部边缘位置的纵坐标等于项的裁剪区域临时属性值的顶部边缘位置的纵坐标
+            self.crop_temp.width() - 2 * self.crop_handle_size, # 顶部边缘位置的宽度等于项的裁剪区域临时属性值的宽度减去2倍的项的裁剪区域句柄大小属性值
+            self.crop_handle_size) # 返回项的裁剪区域顶部边缘位置的矩形对象，高度等于项的裁剪区域句柄大小属性值
 
-    def crop_edge_left(self):
-        topleft = self.crop_temp.topLeft()
-        return QtCore.QRectF(
-            topleft.x(),
-            topleft.y() + self.crop_handle_size,
-            self.crop_handle_size,
-            self.crop_temp.height() - 2 * self.crop_handle_size)
+    def crop_edge_left(self): # 定义项的裁剪区域左侧边缘方法，用于计算项的裁剪区域左侧边缘位置
+        topleft = self.crop_temp.topLeft() # 获取项的裁剪区域临时属性值的左侧边缘位置
+        return QtCore.QRectF( # 返回项的裁剪区域左侧边缘位置的矩形对象
+            topleft.x(), # 左侧边缘位置的横坐标等于项的裁剪区域临时属性值的左侧边缘位置的横坐标
+            topleft.y() + self.crop_handle_size, # 左侧边缘位置的纵坐标等于项的裁剪区域句柄大小属性值加上项的裁剪区域临时属性值的左侧边缘位置的纵坐标
+            self.crop_handle_size, # 左侧边缘位置的宽度等于项的裁剪区域句柄大小属性值
+            self.crop_temp.height() - 2 * self.crop_handle_size) # 返回项的裁剪区域左侧边缘位置的矩形对象，高度等于项的裁剪区域临时属性值的高度减去2倍的项的裁剪区域句柄大小属性值
 
-    def crop_edge_bottom(self):
-        bottomleft = self.crop_temp.bottomLeft()
-        return QtCore.QRectF(
-            bottomleft.x() + self.crop_handle_size,
-            bottomleft.y() - self.crop_handle_size,
-            self.crop_temp.width() - 2 * self.crop_handle_size,
-            self.crop_handle_size)
+    def crop_edge_bottom(self): # 定义项的裁剪区域底部边缘方法，用于计算项的裁剪区域底部边缘位置
+        bottomleft = self.crop_temp.bottomLeft() # 获取项的裁剪区域临时属性值的底部边缘位置
+        return QtCore.QRectF( # 返回项的裁剪区域底部边缘位置的矩形对象
+            bottomleft.x() + self.crop_handle_size, # 底部边缘位置的横坐标等于项的裁剪区域句柄大小属性值加上项的裁剪区域临时属性值的底部边缘位置的横坐标
+            bottomleft.y() - self.crop_handle_size, # 底部边缘位置的纵坐标等于项的裁剪区域句柄大小属性值减去项的裁剪区域临时属性值的底部边缘位置的纵坐标
+            self.crop_temp.width() - 2 * self.crop_handle_size, # 底部边缘位置的宽度等于项的裁剪区域临时属性值的宽度减去2倍的项的裁剪区域句柄大小属性值
+            self.crop_handle_size) # 返回项的裁剪区域底部边缘位置的矩形对象，高度等于项的裁剪区域句柄大小属性值
 
-    def crop_edge_right(self):
-        topright = self.crop_temp.topRight()
-        return QtCore.QRectF(
-            topright.x() - self.crop_handle_size,
+    def crop_edge_right(self): # 定义项的裁剪区域右侧边缘方法，用于计算项的裁剪区域右侧边缘位置
+        topright = self.crop_temp.topRight() # 获取项的裁剪区域临时属性值的右侧边缘位置
+        return QtCore.QRectF( # 返回项的裁剪区域右侧边缘位置的矩形对象
+            topright.x() - self.crop_handle_size, # 右侧边缘位置的横坐标等于项的裁剪区域句柄大小属性值减去项的裁剪区域临时属性值的右侧边缘位置的横坐标
             topright.y() + self.crop_handle_size,
             self.crop_handle_size,
             self.crop_temp.height() - 2 * self.crop_handle_size)
 
-    def crop_edges(self):
-        return (self.crop_edge_top,
-                self.crop_edge_left,
-                self.crop_edge_bottom,
-                self.crop_edge_right)
+    def crop_edges(self): # 定义项的裁剪区域边缘方法，用于返回项的裁剪区域边缘列表
+        return (self.crop_edge_top, # 返回项的裁剪区域顶部边缘方法
+                self.crop_edge_left, # 返回项的裁剪区域左侧边缘方法
+                self.crop_edge_bottom, # 返回项的裁剪区域底部边缘方法
+                self.crop_edge_right) # 返回项的裁剪区域右侧边缘方法
 
-    def get_crop_handle_cursor(self, handle):
+    def get_crop_handle_cursor(self, handle): # 定义项的裁剪区域句柄光标方法，用于返回项的裁剪区域句柄光标
         """Gets the crop cursor for the given handle."""
 
-        is_topleft_or_bottomright = handle in (
+        is_topleft_or_bottomright = handle in ( # 判断项的裁剪区域句柄是否为左上角或右下角句柄
             self.crop_handle_topleft, self.crop_handle_bottomright)
-        return self.get_diag_cursor(is_topleft_or_bottomright)
+        return self.get_diag_cursor(is_topleft_or_bottomright) # 返回项的裁剪区域句柄光标，根据项的裁剪区域句柄是否为左上角或右下角句柄来判断光标类型
 
-    def get_crop_edge_cursor(self, edge):
+    def get_crop_edge_cursor(self, edge): # 定义项的裁剪区域边缘光标方法，用于返回项的裁剪区域边缘光标
         """Gets the crop edge cursor for the given edge."""
 
         top_or_bottom = edge in (
-            self.crop_edge_top, self.crop_edge_bottom)
-        sideways = (45 < self.rotation() < 135
+            self.crop_edge_top, self.crop_edge_bottom) # 判断项的裁剪区域边缘是否为顶部或底部边缘
+        sideways = (45 < self.rotation() < 135 # 判断项的旋转角度是否为45度到135度或225度到315度之间
                     or 225 < self.rotation() < 315)
 
-        if top_or_bottom is sideways:
-            return Qt.CursorShape.SizeHorCursor
+        if top_or_bottom is sideways: # 如果项的裁剪区域边缘为顶部或底部边缘且项的旋转角度为45度到135度或225度到315度之间
+            return Qt.CursorShape.SizeHorCursor # 返回水平光标类型
         else:
-            return Qt.CursorShape.SizeVerCursor
+            return Qt.CursorShape.SizeVerCursor # 返回垂直光标类型
 
-    def draw_crop_rect(self, painter, rect):
+    def draw_crop_rect(self, painter, rect): # 定义项的裁剪区域矩形绘制方法，用于绘制项的裁剪区域矩形
         """Paint a dotted rectangle for the cropping UI."""
-        pen = QtGui.QPen(QtGui.QColor(255, 255, 255))
-        pen.setWidth(2)
-        pen.setCosmetic(True)
-        painter.setPen(pen)
-        painter.drawRect(rect)
-        pen.setColor(QtGui.QColor(0, 0, 0))
-        pen.setStyle(Qt.PenStyle.DotLine)
-        painter.setPen(pen)
-        painter.drawRect(rect)
+        pen = QtGui.QPen(QtGui.QColor(255, 255, 255)) # 创建白色画笔对象
+        pen.setWidth(2) # 设置画笔宽度为2像素
+        pen.setCosmetic(True) # 设置画笔为无宽度模式，用于绘制虚线矩形
+        painter.setPen(pen) # 设置画笔为白色画笔对象
+        painter.drawRect(rect) # 绘制项的裁剪区域矩形
+        pen.setColor(QtGui.QColor(0, 0, 0)) # 设置画笔颜色为黑色
+        pen.setStyle(Qt.PenStyle.DotLine) # 设置画笔样式为虚线
+        painter.setPen(pen) # 设置画笔为黑色虚线画笔对象
+        painter.drawRect(rect) # 绘制项的裁剪区域矩形
 
     def paint(self, painter, option, widget):
         if abs(painter.combinedTransform().m11()) < 2:
