@@ -446,293 +446,293 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
         painter.setPen(pen) # 设置画笔为黑色虚线画笔对象
         painter.drawRect(rect) # 绘制项的裁剪区域矩形
 
-    def paint(self, painter, option, widget):
-        if abs(painter.combinedTransform().m11()) < 2:
+    def paint(self, painter, option, widget): # 定义项的绘制方法，用于绘制项
+        if abs(painter.combinedTransform().m11()) < 2: # 检查缩放比例是否小于2倍
             # We want image smoothing, but only for images where we
             # are not zoomed in a lot. This is to ensure that for
             # example icons and pixel sprites can be viewed correctly.
-            painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
+            painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform) # 设置图像平滑渲染提示
 
-        if self.crop_mode:
-            self.paint_debug(painter, option, widget)
+        if self.crop_mode: # 如果处于裁剪模式
+            self.paint_debug(painter, option, widget) # 绘制调试信息
 
             # Darken image outside of cropped area
-            painter.drawPixmap(0, 0, self.pixmap())
-            path = QtWidgets.QGraphicsPixmapItem.shape(self)
-            path.addRect(self.crop_temp)
-            color = QtGui.QColor(0, 0, 0)
-            color.setAlpha(100)
-            painter.setBrush(QtGui.QBrush(color))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawPath(path)
-            painter.setBrush(QtGui.QBrush())
+            painter.drawPixmap(0, 0, self.pixmap()) # 绘制完整图像
+            path = QtWidgets.QGraphicsPixmapItem.shape(self) # 获取项目形状路径
+            path.addRect(self.crop_temp) # 向路径添加临时裁剪矩形
+            color = QtGui.QColor(0, 0, 0) # 创建黑色
+            color.setAlpha(100) # 设置透明度
+            painter.setBrush(QtGui.QBrush(color)) # 设置画刷
+            painter.setPen(Qt.PenStyle.NoPen) # 设置无笔
+            painter.drawPath(path) # 绘制路径（使裁剪区域外变暗）
+            painter.setBrush(QtGui.QBrush()) # 重置画刷
 
-            for handle in self.crop_handles():
-                self.draw_crop_rect(painter, handle())
-            self.draw_crop_rect(painter, self.crop_temp)
-        else:
-            pm = self._grayscale_pixmap if self.grayscale else self.pixmap()
-            painter.drawPixmap(self.crop, pm, self.crop)
-            self.paint_selectable(painter, option, widget)
+            for handle in self.crop_handles(): # 遍历所有裁剪手柄
+                self.draw_crop_rect(painter, handle()) # 绘制裁剪手柄矩形
+            self.draw_crop_rect(painter, self.crop_temp) # 绘制临时裁剪矩形
+        else: # 非裁剪模式
+            pm = self._grayscale_pixmap if self.grayscale else self.pixmap() # 根据灰度模式选择像素图
+            painter.drawPixmap(self.crop, pm, self.crop) # 绘制裁剪区域
+            self.paint_selectable(painter, option, widget) # 绘制选择效果
 
-    def enter_crop_mode(self):
-        logger.debug(f'Entering crop mode on {self}')
-        self.prepareGeometryChange()
-        self.crop_mode = True
-        self.crop_temp = QtCore.QRectF(self.crop)
-        self.crop_mode_move = None
-        self.crop_mode_event_start = None
-        self.grabKeyboard()
-        self.update()
-        self.scene().crop_item = self
+    def enter_crop_mode(self): # 进入裁剪模式
+        logger.debug(f'Entering crop mode on {self}') # 记录进入裁剪模式的日志
+        self.prepareGeometryChange() # 通知Qt几何形状将要改变
+        self.crop_mode = True # 启用裁剪模式
+        self.crop_temp = QtCore.QRectF(self.crop) # 复制当前裁剪区域作为临时裁剪区域
+        self.crop_mode_move = None # 初始化裁剪移动类型
+        self.crop_mode_event_start = None # 初始化裁剪事件起始位置
+        self.grabKeyboard() # 抓取键盘输入
+        self.update() # 更新项目显示
+        self.scene().crop_item = self # 设置场景的当前裁剪项目
 
-    def exit_crop_mode(self, confirm):
-        logger.debug(f'Exiting crop mode with {confirm} on {self}')
-        if confirm and self.crop != self.crop_temp:
-            self.scene().undo_stack.push(
+    def exit_crop_mode(self, confirm): # 退出裁剪模式，参数confirm表示是否确认裁剪
+        logger.debug(f'Exiting crop mode with {confirm} on {self}') # 记录退出裁剪模式的日志
+        if confirm and self.crop != self.crop_temp: # 如果确认且裁剪区域有变化
+            self.scene().undo_stack.push( # 将裁剪操作添加到撤销栈
                 commands.CropItem(self, self.crop_temp))
-        self.prepareGeometryChange()
-        self.crop_mode = False
-        self.crop_temp = None
-        self.crop_mode_move = None
-        self.crop_mode_event_start = None
-        self.ungrabKeyboard()
-        self.update()
-        self.scene().crop_item = None
+        self.prepareGeometryChange() # 通知Qt几何形状将要改变
+        self.crop_mode = False # 禁用裁剪模式
+        self.crop_temp = None # 清除临时裁剪区域
+        self.crop_mode_move = None # 清除裁剪移动类型
+        self.crop_mode_event_start = None # 清除裁剪事件起始位置
+        self.ungrabKeyboard() # 释放键盘抓取
+        self.update() # 更新项目显示
+        self.scene().crop_item = None # 清除场景的当前裁剪项目
 
-    def keyPressEvent(self, event):
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            self.exit_crop_mode(confirm=True)
-        elif event.key() == Qt.Key.Key_Escape:
-            self.exit_crop_mode(confirm=False)
-        else:
-            super().keyPressEvent(event)
+    def keyPressEvent(self, event): # 键盘按键事件处理
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter): # 如果按下Enter键
+            self.exit_crop_mode(confirm=True) # 确认并退出裁剪模式
+        elif event.key() == Qt.Key.Key_Escape: # 如果按下Escape键
+            self.exit_crop_mode(confirm=False) # 取消并退出裁剪模式
+        else: # 其他按键
+            super().keyPressEvent(event) # 调用父类处理
 
-    def hoverMoveEvent(self, event):
-        if not self.crop_mode:
-            return super().hoverMoveEvent(event)
+    def hoverMoveEvent(self, event): # 鼠标悬停移动事件处理
+        if not self.crop_mode: # 如果不是裁剪模式
+            return super().hoverMoveEvent(event) # 调用父类处理
 
-        for handle in self.crop_handles():
-            if handle().contains(event.pos()):
-                self.set_cursor(self.get_crop_handle_cursor(handle))
+        for handle in self.crop_handles(): # 遍历所有裁剪手柄
+            if handle().contains(event.pos()): # 如果鼠标在手柄内
+                self.set_cursor(self.get_crop_handle_cursor(handle)) # 设置对应的光标
                 return
-        for edge in self.crop_edges():
-            if edge().contains(event.pos()):
-                self.set_cursor(self.get_crop_edge_cursor(edge))
+        for edge in self.crop_edges(): # 遍历所有裁剪边缘
+            if edge().contains(event.pos()): # 如果鼠标在边缘内
+                self.set_cursor(self.get_crop_edge_cursor(edge)) # 设置对应的光标
                 return
-        self.unset_cursor()
+        self.unset_cursor() # 重置光标
 
-    def mousePressEvent(self, event):
-        if not self.crop_mode:
-            return super().mousePressEvent(event)
+    def mousePressEvent(self, event): # 鼠标按下事件处理
+        if not self.crop_mode: # 如果不是裁剪模式
+            return super().mousePressEvent(event) # 调用父类处理
 
-        event.accept()
-        for handle in self.crop_handles():
+        event.accept() # 接受事件
+        for handle in self.crop_handles(): # 遍历所有裁剪手柄
             # Click into a handle?
-            if handle().contains(event.pos()):
-                self.crop_mode_event_start = event.pos()
-                self.crop_mode_move = handle
+            if handle().contains(event.pos()): # 如果点击位置在手柄内
+                self.crop_mode_event_start = event.pos() # 记录事件起始位置
+                self.crop_mode_move = handle # 设置移动类型为该手柄
                 return
-        for edge in self.crop_edges():
+        for edge in self.crop_edges(): # 遍历所有裁剪边缘
             # Click into an edge handle?
-            if edge().contains(event.pos()):
-                self.crop_mode_event_start = event.pos()
-                self.crop_mode_move = edge
+            if edge().contains(event.pos()): # 如果点击位置在边缘内
+                self.crop_mode_event_start = event.pos() # 记录事件起始位置
+                self.crop_mode_move = edge # 设置移动类型为该边缘
                 return
-        # Click not in handle, end cropping mode:
+        # Click not in handle, end cropping mode: 如果点击不在手柄或边缘上，结束裁剪模式
         self.exit_crop_mode(
-            confirm=self.crop_temp.contains(event.pos()))
+            confirm=self.crop_temp.contains(event.pos())) # 根据点击位置决定是否确认裁剪
 
-    def ensure_point_within_crop_bounds(self, point, handle):
+    def ensure_point_within_crop_bounds(self, point, handle): # 确保点在裁剪边界内
         """Returns the point, or the nearest point within the pixmap."""
 
-        if handle == self.crop_handle_topleft:
-            topleft = QtCore.QPointF(0, 0)
-            bottomright = self.crop_temp.bottomRight()
-        if handle == self.crop_handle_bottomleft:
-            topleft = QtCore.QPointF(0, self.crop_temp.top())
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_handle_topleft: # 如果是左上角手柄
+            topleft = QtCore.QPointF(0, 0) # 左上角边界
+            bottomright = self.crop_temp.bottomRight() # 右下角边界（临时裁剪区域的右下角）
+        if handle == self.crop_handle_bottomleft: # 如果是左下角手柄
+            topleft = QtCore.QPointF(0, self.crop_temp.top()) # 左上角边界
+            bottomright = QtCore.QPointF( # 右下角边界
                 self.crop_temp.right(), self.pixmap().size().height())
-        if handle == self.crop_handle_bottomright:
-            topleft = self.crop_temp.topLeft()
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_handle_bottomright: # 如果是右下角手柄
+            topleft = self.crop_temp.topLeft() # 左上角边界（临时裁剪区域的左上角）
+            bottomright = QtCore.QPointF( # 右下角边界（整个像素图的右下角）
                 self.pixmap().size().width(), self.pixmap().size().height())
-        if handle == self.crop_handle_topright:
-            topleft = QtCore.QPointF(self.crop_temp.left(), 0)
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_handle_topright: # 如果是右上角手柄
+            topleft = QtCore.QPointF(self.crop_temp.left(), 0) # 左上角边界
+            bottomright = QtCore.QPointF( # 右下角边界
                 self.pixmap().size().width(), self.crop_temp.bottom())
-        if handle == self.crop_edge_top:
-            topleft = QtCore.QPointF(0, 0)
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_edge_top: # 如果是顶部边缘
+            topleft = QtCore.QPointF(0, 0) # 左上角边界
+            bottomright = QtCore.QPointF( # 右下角边界
                 self.pixmap().size().width(), self.crop_temp.bottom())
-        if handle == self.crop_edge_bottom:
-            topleft = QtCore.QPointF(0, self.crop_temp.top())
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_edge_bottom: # 如果是底部边缘
+            topleft = QtCore.QPointF(0, self.crop_temp.top()) # 左上角边界
+            bottomright = QtCore.QPointF( # 右下角边界
                 self.pixmap().size().width(), self.pixmap().size().height())
-        if handle == self.crop_edge_left:
-            topleft = QtCore.QPointF(0, 0)
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_edge_left: # 如果是左侧边缘
+            topleft = QtCore.QPointF(0, 0) # 左上角边界
+            bottomright = QtCore.QPointF( # 右下角边界
                 self.crop_temp.right(), self.pixmap().size().height())
-        if handle == self.crop_edge_right:
-            topleft = QtCore.QPointF(self.crop_temp.left(), 0)
-            bottomright = QtCore.QPointF(
+        if handle == self.crop_edge_right: # 如果是右侧边缘
+            topleft = QtCore.QPointF(self.crop_temp.left(), 0) # 左上角边界
+            bottomright = QtCore.QPointF( # 右下角边界
                 self.pixmap().size().width(), self.pixmap().size().height())
 
-        point.setX(min(bottomright.x(), max(topleft.x(), point.x())))
-        point.setY(min(bottomright.y(), max(topleft.y(), point.y())))
+        point.setX(min(bottomright.x(), max(topleft.x(), point.x()))) # 限制点的X坐标在边界内
+        point.setY(min(bottomright.y(), max(topleft.y(), point.y()))) # 限制点的Y坐标在边界内
 
-        return point
+        return point # 返回限制后的点
 
-    def mouseMoveEvent(self, event):
-        if self.crop_mode and self.crop_mode_event_start:
-            diff = event.pos() - self.crop_mode_event_start
-            if self.crop_mode_move == self.crop_handle_topleft:
-                new = self.ensure_point_within_crop_bounds(
+    def mouseMoveEvent(self, event): # 鼠标移动事件处理
+        if self.crop_mode and self.crop_mode_event_start: # 如果处于裁剪模式且有起始位置
+            diff = event.pos() - self.crop_mode_event_start # 计算位置差异
+            if self.crop_mode_move == self.crop_handle_topleft: # 如果移动左上角手柄
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.topLeft() + diff, self.crop_mode_move)
-                self.crop_temp.setTopLeft(new)
-            if self.crop_mode_move == self.crop_handle_bottomleft:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setTopLeft(new) # 更新左上角
+            if self.crop_mode_move == self.crop_handle_bottomleft: # 如果移动左下角手柄
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.bottomLeft() + diff, self.crop_mode_move)
-                self.crop_temp.setBottomLeft(new)
-            if self.crop_mode_move == self.crop_handle_bottomright:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setBottomLeft(new) # 更新左下角
+            if self.crop_mode_move == self.crop_handle_bottomright: # 如果移动右下角手柄
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.bottomRight() + diff, self.crop_mode_move)
-                self.crop_temp.setBottomRight(new)
-            if self.crop_mode_move == self.crop_handle_topright:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setBottomRight(new) # 更新右下角
+            if self.crop_mode_move == self.crop_handle_topright: # 如果移动右上角手柄
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.topRight() + diff, self.crop_mode_move)
-                self.crop_temp.setTopRight(new)
-            if self.crop_mode_move == self.crop_edge_top:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setTopRight(new) # 更新右上角
+            if self.crop_mode_move == self.crop_edge_top: # 如果移动顶部边缘
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.topLeft() + diff, self.crop_mode_move)
-                self.crop_temp.setTop(new.y())
-            if self.crop_mode_move == self.crop_edge_left:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setTop(new.y()) # 更新顶部
+            if self.crop_mode_move == self.crop_edge_left: # 如果移动左侧边缘
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.topLeft() + diff, self.crop_mode_move)
-                self.crop_temp.setLeft(new.x())
-            if self.crop_mode_move == self.crop_edge_bottom:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setLeft(new.x()) # 更新左侧
+            if self.crop_mode_move == self.crop_edge_bottom: # 如果移动底部边缘
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.bottomLeft() + diff, self.crop_mode_move)
-                self.crop_temp.setBottom(new.y())
-            if self.crop_mode_move == self.crop_edge_right:
-                new = self.ensure_point_within_crop_bounds(
+                self.crop_temp.setBottom(new.y()) # 更新底部
+            if self.crop_mode_move == self.crop_edge_right: # 如果移动右侧边缘
+                new = self.ensure_point_within_crop_bounds( # 确保新位置在边界内
                     self.crop_temp.topRight() + diff, self.crop_mode_move)
-                self.crop_temp.setRight(new.x())
-            self.update()
-            self.crop_mode_event_start = event.pos()
-            event.accept()
-        else:
-            super().mouseMoveEvent(event)
+                self.crop_temp.setRight(new.x()) # 更新右侧
+            self.update() # 更新项目显示
+            self.crop_mode_event_start = event.pos() # 更新事件起始位置
+            event.accept() # 接受事件
+        else: # 非裁剪模式或没有起始位置
+            super().mouseMoveEvent(event) # 调用父类处理
 
-    def mouseReleaseEvent(self, event):
-        if self.crop_mode:
-            self.crop_mode_move = None
-            self.crop_mode_event_start = None
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
+    def mouseReleaseEvent(self, event): # 鼠标释放事件处理
+        if self.crop_mode: # 如果处于裁剪模式
+            self.crop_mode_move = None # 清除移动类型
+            self.crop_mode_event_start = None # 清除事件起始位置
+            event.accept() # 接受事件
+        else: # 非裁剪模式
+            super().mouseReleaseEvent(event) # 调用父类处理
 
 
-@register_item
-class BeeTextItem(BeeItemMixin, QtWidgets.QGraphicsTextItem):
+@register_item # 使用装饰器注册该类
+class BeeTextItem(BeeItemMixin, QtWidgets.QGraphicsTextItem): # 文本项目类，继承自BeeItemMixin和QtWidgets.QGraphicsTextItem
     """Class for text added by the user."""
 
-    TYPE = 'text'
+    TYPE = 'text' # 项目类型标识符
 
-    def __init__(self, text=None, **kwargs):
-        super().__init__(text or "Text")
-        self.save_id = None
-        logger.debug(f'Initialized {self}')
-        self.is_image = False
-        self.init_selectable()
-        self.is_editable = True
-        self.edit_mode = False
-        self.setDefaultTextColor(QtGui.QColor(*COLORS['Scene:Text']))
+    def __init__(self, text=None, **kwargs): # 初始化文本项目
+        super().__init__(text or "Text") # 调用父类构造函数，默认文本为"Text"
+        self.save_id = None # 保存ID，用于标识项目
+        logger.debug(f'Initialized {self}') # 记录初始化日志
+        self.is_image = False # 标记为非图像类型
+        self.init_selectable() # 初始化可选择属性
+        self.is_editable = True # 标记为可编辑
+        self.edit_mode = False # 编辑模式标志
+        self.setDefaultTextColor(QtGui.QColor(*COLORS['Scene:Text'])) # 设置默认文本颜色
 
-    @classmethod
+    @classmethod # 类方法，从数据创建项目
     def create_from_data(cls, **kwargs):
-        data = kwargs.get('data', {})
-        item = cls(**data)
-        return item
+        data = kwargs.get('data', {}) # 获取项目数据
+        item = cls(**data) # 创建项目实例
+        return item # 返回创建的项目
 
-    def __str__(self):
-        txt = self.toPlainText()[:40]
-        return (f'Text "{txt}"')
+    def __str__(self): # 返回项目的字符串表示
+        txt = self.toPlainText()[:40] # 获取文本前40个字符
+        return (f'Text "{txt}"') # 返回格式化的字符串
 
-    def get_extra_save_data(self):
-        return {'text': self.toPlainText()}
+    def get_extra_save_data(self): # 获取需要保存的额外数据
+        return {'text': self.toPlainText()} # 返回文本内容
 
-    def contains(self, point):
-        return self.boundingRect().contains(point)
+    def contains(self, point): # 检查点是否在项目内
+        return self.boundingRect().contains(point) # 检查点是否在边界矩形内
 
-    def paint(self, painter, option, widget):
-        painter.setPen(Qt.PenStyle.NoPen)
-        color = QtGui.QColor(0, 0, 0)
-        color.setAlpha(40)
-        brush = QtGui.QBrush(color)
-        painter.setBrush(brush)
-        painter.drawRect(QtWidgets.QGraphicsTextItem.boundingRect(self))
-        option.state = QtWidgets.QStyle.StateFlag.State_Enabled
-        super().paint(painter, option, widget)
-        self.paint_selectable(painter, option, widget)
+    def paint(self, painter, option, widget): # 绘制项目
+        painter.setPen(Qt.PenStyle.NoPen) # 设置无笔
+        color = QtGui.QColor(0, 0, 0) # 创建黑色
+        color.setAlpha(40) # 设置透明度
+        brush = QtGui.QBrush(color) # 创建画刷
+        painter.setBrush(brush) # 设置画刷
+        painter.drawRect(QtWidgets.QGraphicsTextItem.boundingRect(self)) # 绘制背景矩形
+        option.state = QtWidgets.QStyle.StateFlag.State_Enabled # 设置选项状态为启用
+        super().paint(painter, option, widget) # 调用父类绘制文本
+        self.paint_selectable(painter, option, widget) # 绘制选择效果
 
-    def create_copy(self):
-        item = BeeTextItem(self.toPlainText())
-        item.setPos(self.pos())
-        item.setZValue(self.zValue())
-        item.setScale(self.scale())
-        item.setRotation(self.rotation())
-        if self.flip() == -1:
-            item.do_flip()
-        return item
+    def create_copy(self): # 创建项目的副本
+        item = BeeTextItem(self.toPlainText()) # 创建新项目，文本内容相同
+        item.setPos(self.pos()) # 设置相同的位置
+        item.setZValue(self.zValue()) # 设置相同的Z值
+        item.setScale(self.scale()) # 设置相同的缩放比例
+        item.setRotation(self.rotation()) # 设置相同的旋转角度
+        if self.flip() == -1: # 如果当前是翻转状态
+            item.do_flip() # 翻转新项目
+        return item # 返回创建的副本
 
-    def enter_edit_mode(self):
-        logger.debug(f'Entering edit mode on {self}')
-        self.edit_mode = True
-        self.old_text = self.toPlainText()
-        self.setTextInteractionFlags(
+    def enter_edit_mode(self): # 进入编辑模式
+        logger.debug(f'Entering edit mode on {self}') # 记录进入编辑模式的日志
+        self.edit_mode = True # 启用编辑模式
+        self.old_text = self.toPlainText() # 保存当前文本，用于取消编辑
+        self.setTextInteractionFlags( # 设置文本交互标志为编辑交互
             Qt.TextInteractionFlag.TextEditorInteraction)
-        self.scene().edit_item = self
+        self.scene().edit_item = self # 设置场景的当前编辑项目
 
-    def exit_edit_mode(self, commit=True):
-        logger.debug(f'Exiting edit mode on {self}')
-        self.edit_mode = False
-        # reset selection:
-        self.setTextCursor(QtGui.QTextCursor(self.document()))
-        self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        self.scene().edit_item = None
-        if commit:
-            self.scene().undo_stack.push(
+    def exit_edit_mode(self, commit=True): # 退出编辑模式，参数commit表示是否确认修改
+        logger.debug(f'Exiting edit mode on {self}') # 记录退出编辑模式的日志
+        self.edit_mode = False # 禁用编辑模式
+        # reset selection: 重置选择
+        self.setTextCursor(QtGui.QTextCursor(self.document())) # 重置文本光标
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction) # 禁用文本交互
+        self.scene().edit_item = None # 清除场景的当前编辑项目
+        if commit: # 如果确认编辑
+            self.scene().undo_stack.push( # 将文本更改添加到撤销栈
                 commands.ChangeText(self, self.toPlainText(), self.old_text))
-            if not self.toPlainText().strip():
-                logger.debug('Removing empty text item')
-                self.scene().undo_stack.push(
+            if not self.toPlainText().strip(): # 如果文本为空
+                logger.debug('Removing empty text item') # 记录删除空文本项目的日志
+                self.scene().undo_stack.push( # 将删除操作添加到撤销栈
                     commands.DeleteItems(self.scene(), [self]))
-        else:
-            self.setPlainText(self.old_text)
+        else: # 如果取消编辑
+            self.setPlainText(self.old_text) # 恢复旧文本
 
-    def has_selection_handles(self):
+    def has_selection_handles(self): # 检查项目是否有选择手柄（编辑模式下没有选择手柄）
         return super().has_selection_handles() and not self.edit_mode
 
-    def keyPressEvent(self, event):
-        if (event.key() in (Qt.Key.Key_Enter, Qt.Key.Key_Return)
+    def keyPressEvent(self, event): # 键盘按键事件处理
+        if (event.key() in (Qt.Key.Key_Enter, Qt.Key.Key_Return) # 如果按下Enter键且没有修饰键
                 and event.modifiers() == Qt.KeyboardModifier.NoModifier):
-            self.exit_edit_mode()
+            self.exit_edit_mode() # 退出编辑模式并确认
             event.accept()
             return
-        if (event.key() == Qt.Key.Key_Escape
+        if (event.key() == Qt.Key.Key_Escape # 如果按下Escape键且没有修饰键
                 and event.modifiers() == Qt.KeyboardModifier.NoModifier):
-            self.exit_edit_mode(commit=False)
+            self.exit_edit_mode(commit=False) # 退出编辑模式并取消
             event.accept()
             return
-        super().keyPressEvent(event)
+        super().keyPressEvent(event) # 其他按键，调用父类处理
 
-    def copy_to_clipboard(self, clipboard):
-        clipboard.setText(self.toPlainText())
+    def copy_to_clipboard(self, clipboard): # 将项目复制到剪贴板
+        clipboard.setText(self.toPlainText()) # 设置剪贴板内容为文本
 
 
-@register_item
-class BeeErrorItem(BeeItemMixin, QtWidgets.QGraphicsTextItem):
+@register_item # 使用装饰器注册该类
+class BeeErrorItem(BeeItemMixin, QtWidgets.QGraphicsTextItem): # 错误项目类，继承自BeeItemMixin和QtWidgets.QGraphicsTextItem
     """Class for displaying error messages when an item can't be loaded
     from a bee file.
 
@@ -742,65 +742,65 @@ class BeeErrorItem(BeeItemMixin, QtWidgets.QGraphicsTextItem):
     is saved.
     """
 
-    TYPE = 'error'
+    TYPE = 'error' # 项目类型标识符
 
-    def __init__(self, text=None, **kwargs):
-        super().__init__(text or "Text")
-        self.original_save_id = None
-        logger.debug(f'Initialized {self}')
-        self.is_image = False
-        self.init_selectable()
-        self.is_editable = False
-        self.setDefaultTextColor(QtGui.QColor(*COLORS['Scene:Text']))
+    def __init__(self, text=None, **kwargs): # 初始化错误项目
+        super().__init__(text or "Text") # 调用父类构造函数
+        self.original_save_id = None # 原始项目的保存ID
+        logger.debug(f'Initialized {self}') # 记录初始化日志
+        self.is_image = False # 标记为非图像类型
+        self.init_selectable() # 初始化可选择属性
+        self.is_editable = False # 标记为不可编辑
+        self.setDefaultTextColor(QtGui.QColor(*COLORS['Scene:Text'])) # 设置默认文本颜色
 
-    @classmethod
+    @classmethod # 类方法，从数据创建项目
     def create_from_data(cls, **kwargs):
-        data = kwargs.get('data', {})
-        item = cls(**data)
-        return item
+        data = kwargs.get('data', {}) # 获取项目数据
+        item = cls(**data) # 创建项目实例
+        return item # 返回创建的项目
 
-    def __str__(self):
-        txt = self.toPlainText()[:40]
-        return (f'Error "{txt}"')
+    def __str__(self): # 返回项目的字符串表示
+        txt = self.toPlainText()[:40] # 获取文本前40个字符
+        return (f'Error "{txt}"') # 返回格式化的字符串
 
-    def contains(self, point):
-        return self.boundingRect().contains(point)
+    def contains(self, point): # 检查点是否在项目内
+        return self.boundingRect().contains(point) # 检查点是否在边界矩形内
 
-    def paint(self, painter, option, widget):
-        painter.setPen(Qt.PenStyle.NoPen)
-        color = QtGui.QColor(200, 0, 0)
-        brush = QtGui.QBrush(color)
-        painter.setBrush(brush)
-        painter.drawRect(QtWidgets.QGraphicsTextItem.boundingRect(self))
-        option.state = QtWidgets.QStyle.StateFlag.State_Enabled
-        super().paint(painter, option, widget)
-        self.paint_selectable(painter, option, widget)
+    def paint(self, painter, option, widget): # 绘制项目
+        painter.setPen(Qt.PenStyle.NoPen) # 设置无笔
+        color = QtGui.QColor(200, 0, 0) # 创建红色
+        brush = QtGui.QBrush(color) # 创建画刷
+        painter.setBrush(brush) # 设置画刷
+        painter.drawRect(QtWidgets.QGraphicsTextItem.boundingRect(self)) # 绘制红色背景矩形
+        option.state = QtWidgets.QStyle.StateFlag.State_Enabled # 设置选项状态为启用
+        super().paint(painter, option, widget) # 调用父类绘制文本
+        self.paint_selectable(painter, option, widget) # 绘制选择效果
 
-    def update_from_data(self, **kwargs):
-        self.original_save_id = kwargs.get('save_id', self.original_save_id)
-        self.setPos(kwargs.get('x', self.pos().x()),
-                    kwargs.get('y', self.pos().y()))
-        self.setZValue(kwargs.get('z', self.zValue()))
-        self.setScale(kwargs.get('scale', self.scale()))
-        self.setRotation(kwargs.get('rotation', self.rotation()))
+    def update_from_data(self, **kwargs): # 从数据更新项目属性
+        self.original_save_id = kwargs.get('save_id', self.original_save_id) # 更新原始保存ID
+        self.setPos(kwargs.get('x', self.pos().x()), # 更新X坐标
+                    kwargs.get('y', self.pos().y())) # 更新Y坐标
+        self.setZValue(kwargs.get('z', self.zValue())) # 更新Z值
+        self.setScale(kwargs.get('scale', self.scale())) # 更新缩放比例
+        self.setRotation(kwargs.get('rotation', self.rotation())) # 更新旋转角度
 
-    def create_copy(self):
-        item = BeeErrorItem(self.toPlainText())
-        item.setPos(self.pos())
-        item.setZValue(self.zValue())
-        item.setScale(self.scale())
-        item.setRotation(self.rotation())
-        return item
+    def create_copy(self): # 创建项目的副本
+        item = BeeErrorItem(self.toPlainText()) # 创建新项目，文本内容相同
+        item.setPos(self.pos()) # 设置相同的位置
+        item.setZValue(self.zValue()) # 设置相同的Z值
+        item.setScale(self.scale()) # 设置相同的缩放比例
+        item.setRotation(self.rotation()) # 设置相同的旋转角度
+        return item # 返回创建的副本
 
-    def flip(self, *args, **kwargs):
+    def flip(self, *args, **kwargs): # 返回翻转值（错误项目永远不翻转）
         """Returns the flip value (1 or -1)"""
         # Never display error messages flipped
         return 1
 
-    def do_flip(self, *args, **kwargs):
+    def do_flip(self, *args, **kwargs): # 翻转项目（错误项目永远不翻转）
         """Flips the item."""
         # Never flip error messages
         pass
 
-    def copy_to_clipboard(self, clipboard):
-        clipboard.setText(self.toPlainText())
+    def copy_to_clipboard(self, clipboard): # 将项目复制到剪贴板
+        clipboard.setText(self.toPlainText()) # 设置剪贴板内容为文本
