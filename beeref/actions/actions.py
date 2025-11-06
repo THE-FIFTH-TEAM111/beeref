@@ -18,7 +18,6 @@ import logging
 
 from PyQt6 import QtGui
 
-# 从beeref.actions.menu_structure模块导入菜单结构定义menu_structure
 from beeref.actions.menu_structure import menu_structure
 from beeref.config import KeyboardSettings, settings_events
 from beeref.utils import ActionList
