@@ -769,13 +769,13 @@ class BeeGraphicsView(MainControlsMixin,
             topleft = self.mapFromScene( # 映射场景矩形的左上角到视口坐标
                 self.scene.itemsBoundingRect().topLeft()) # 映射场景矩形的左上角到视口坐标
             topleft = self.mapToScene(QtCore.QPoint( # 映射视口坐标的左上角到场景坐标
-                topleft.x() - self.size().width() / 2, # 减去视口宽度的一半，确保场景矩形在视口宽度的一半宽度内 
-                topleft.y() - self.size().height() / 2)) # 减去视口高度的一半，确保场景矩形在视口高度的一半高度内
+                int(topleft.x() - self.size().width() / 2), # 减去视口宽度的一半，确保场景矩形在视口宽度的一半宽度内 
+                int(topleft.y() - self.size().height() / 2))) # 减去视口高度的一半，确保场景矩形在视口高度的一半高度内
             bottomright = self.mapFromScene( # 映射场景矩形的右下角到视口坐标
                 self.scene.itemsBoundingRect().bottomRight()) # 映射场景矩形的右下角到视口坐标 
             bottomright = self.mapToScene(QtCore.QPoint( # 映射视口坐标的右下角到场景坐标
-                bottomright.x() + self.size().width() / 2, # 加上视口宽度的一半，确保场景矩形在视口宽度的一半宽度内
-                bottomright.y() + self.size().height() / 2)) # 加上视口高度的一半，确保场景矩形在视口高度的一半高度内   
+                int(bottomright.x() + self.size().width() / 2), # 加上视口宽度的一半，确保场景矩形在视口宽度的一半宽度内
+                int(bottomright.y() + self.size().height() / 2))) # 加上视口高度的一半，确保场景矩形在视口高度的一半高度内   
             self.setSceneRect(QtCore.QRectF(topleft, bottomright)) # 设置场景矩形为新计算的矩形
         except OverflowError: # 处理溢出错误，当场景矩形超出最大尺寸时触发
             logger.info('Maximum scene size reached') # 信息日志，提示最大场景尺寸已达到
