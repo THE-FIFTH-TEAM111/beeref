@@ -149,7 +149,7 @@ class BeeGraphicsView(MainControlsMixin,
             self.welcome_overlay.show() # 显示欢迎叠加层
             self.actiongroup_set_enabled('active_when_items_in_scene', False) # 禁用场景中物品相关操作
         else:
-            self.setFocus(QtCore.Qt.PopupFocusReason) # 设置场景为焦点，使用 PopupFocusReason 原因
+            self.setFocus(QtCore.Qt.FocusReason.PopupFocusReason) # 设置场景为焦点，使用正确的FocusReason枚举
             self.welcome_overlay.clearFocus()# 清除欢迎叠加层焦点
             self.welcome_overlay.hide() # 隐藏欢迎叠加层
             self.actiongroup_set_enabled('active_when_items_in_scene', True) # 启用场景中物品相关操作
