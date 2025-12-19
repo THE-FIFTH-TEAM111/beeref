@@ -365,3 +365,19 @@ class ToggleGrayscale(QtGui.QUndoCommand):
     def undo(self):
         for item, grayscale in zip(self.items, self.old_grayscales):
             item.grayscale = grayscale
+
+# ------------------------------
+# 新增：更新图片Pixmap的撤销命令（用于水印操作）
+# ------------------------------
+class UpdatePixmap(QtGui.QUndoCommand):
+    def __init__(self, item, new_pixmap):
+        super().__init__("修改图片")
+        self.item = item
+        self.old_pixmap = item.pixmap()
+        self.new_pixmap = new_pixmap
+
+    def redo(self):
+        self.item.setPixmap(self.new_pixmap)
+
+    def undo(self):
+        self.item.setPixmap(self.old_pixmap)
