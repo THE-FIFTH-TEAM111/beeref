@@ -56,9 +56,8 @@ class Action:
         self.menu_id = menu_id  # 动作在动态菜单中的标识（如“最近文件”菜单下的动态项）
         self.qaction = None  # 存储与当前Action绑定的PyQt QAction对象（后续界面渲染时赋值）
         self.kb_settings = KeyboardSettings()  # 实例化键盘设置对象，用于读取/保存用户自定义快捷键
-        # 绑定“恢复键盘默认值”事件：当用户触发恢复默认设置时，调用当前动作的on_restore_defaults方法
-        settings_events.restore_keyboard_defaults.connect(
-            self.on_restore_defaults)
+        # 绑定“恢复默认快捷键”事件：当用户触发恢复默认设置时，调用当前动作的on_restore_defaults方法
+        settings_events.restore_defaults.connect(self.on_restore_defaults)
 
     def __eq__(self, other):
         # 定义Action实例的相等判断规则：仅当两个动作的id相同时，认为是同一个动作
@@ -254,7 +253,7 @@ actions = ActionList([
     ),
     Action(
         id='lower_to_bottom',  # 动作唯一标识：置底
-        text='Lower to Bottom',  # 菜单显示文本：无字母快捷键
+        text='Lower to &Bottom',  # 菜单显示文本：无字母快捷键
         shortcuts=['PgDown'],  # 默认快捷键：PageDown键
         callback='on_action_lower_to_bottom',  # 触发方法：on_action_lower_to_bottom
         group='active_when_selection',  # 可用性组：仅当有选中项目时激活
@@ -263,21 +262,21 @@ actions = ActionList([
     # 5. 尺寸标准化操作类动作
     Action(
         id='normalize_height',  # 动作唯一标识：标准化高度
-        text='&Height',  # 菜单显示文本：Alt+H为菜单快捷键
+        text='&Normalize Height',  # 菜单显示文本：Alt+H为菜单快捷键
         shortcuts=['Shift+H'],  # 默认快捷键：Shift+H
         callback='on_action_normalize_height',  # 触发方法：on_action_normalize_height
         group='active_when_selection',  # 可用性组：仅当有选中项目时激活
     ),
     Action(
         id='normalize_width',  # 动作唯一标识：标准化宽度
-        text='&Width',  # 菜单显示文本：Alt+W为菜单快捷键
+        text='&Normalize Width',  # 菜单显示文本：Alt+W为菜单快捷键
         shortcuts=['Shift+W'],  # 默认快捷键：Shift+W
         callback='on_action_normalize_width',  # 触发方法：on_action_normalize_width
         group='active_when_selection',  # 可用性组：仅当有选中项目时激活
     ),
     Action(
         id='normalize_size',  # 动作唯一标识：标准化尺寸
-        text='&Size',  # 菜单显示文本：Alt+S为菜单快捷键
+        text='&Normalize Size',  # 菜单显示文本：Alt+S为菜单快捷键
         shortcuts=['Shift+S'],  # 默认快捷键：Shift+S
         callback='on_action_normalize_size',  # 触发方法：on_action_normalize_size
         group='active_when_selection',  # 可用性组：仅当有选中项目时激活
@@ -333,7 +332,7 @@ actions = ActionList([
     ),
     Action(
         id='sample_color',  # 动作唯一标识：颜色采样
-        text='Sample Color',  # 菜单显示文本：无字母快捷键
+        text='&Sample Color',  # 菜单显示文本：无字母快捷键
         shortcuts=['S'],  # 默认快捷键：S键
         callback='on_action_sample_color',  # 触发方法：on_action_sample_color
         group='active_when_items_in_scene',  # 可用性组：仅当场景中有项目时激活
@@ -423,7 +422,7 @@ actions = ActionList([
     ),
     Action(
         id='deselect_all',  # 动作唯一标识：取消全选
-        text='Deselect &All',  # 菜单显示文本：Alt+A为菜单快捷键
+        text='&Deselect All',  # 菜单显示文本：Alt+A为菜单快捷键
         shortcuts=['Ctrl+Shift+A'],  # 默认快捷键：Ctrl+Shift+A
         callback='on_action_deselect_all',  # 触发方法：on_action_deselect_all
     ),
@@ -470,7 +469,7 @@ actions = ActionList([
     ),
     Action(
         id='move_window',  # 动作唯一标识：移动窗口
-        text='Move &Window',  # 菜单显示文本：Alt+W为菜单快捷键
+        text='&Move Window',  # 菜单显示文本：Alt+W为菜单快捷键
         shortcuts=['Ctrl+M'],  # 默认快捷键：Ctrl+M
         callback='on_action_move_window',  # 触发方法：on_action_move_window
     ),
@@ -483,7 +482,7 @@ actions = ActionList([
     ),
     Action(
         id='always_on_top',  # 动作唯一标识：窗口置顶
-        text='&Always On Top',  # 菜单显示文本：Alt+A为菜单快捷键
+        text='&Always on Top',  # 菜单显示文本：Alt+A为菜单快捷键
         checkable=True,  # 可勾选：启用/禁用窗口置顶
         callback='on_action_always_on_top',  # 触发方法：on_action_always_on_top
     ),
@@ -503,5 +502,14 @@ actions = ActionList([
         id='open_settings_dir',  # 动作唯一标识：打开设置文件夹
         text='&Open Settings Folder',  # 菜单显示文本：Alt+O为菜单快捷键
         callback='on_action_open_settings_dir',  # 触发方法：on_action_open_settings_dir
+    ),
+
+    # 新增：批量添加水印动作
+    Action(
+        id='add_watermark',
+        text='&Batch Add Watermark...',
+        shortcuts=['Ctrl+Shift+W'],
+        callback='on_action_add_watermark',
+        group='active_when_items_in_scene',
     ),
 ])
