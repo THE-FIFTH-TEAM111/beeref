@@ -93,6 +93,12 @@ class ExporterBase:
 class SceneExporterBase(ExporterBase):
     """For exporting the scene to a single image."""        # 场景导出器基类，用于定义场景导出器的通用方法
 
+    # 默认参数配置
+    DEFAULT_PARAMETERS = {
+        'width': None,          # 导出宽度
+        'height': None,         # 导出高度
+    }
+
     # 场景导出器基类的初始化方法
     def __init__(self, scene):
         self.scene = scene                                  # 场景导出器基类的初始化方法，接收场景作为参数
@@ -110,6 +116,21 @@ class SceneExporterBase(ExporterBase):
             QtCore.QMargins(*([int(self.margin)] * 4)))              # 计算导出图像的大小，包含边距
         logger.debug(f'Default export margin: {self.margin}')        # 记录导出图像的边距
         logger.debug(f'Default export size with margins: {self.default_size}')# 记录导出图像的大小，包含边距
+        
+        # 初始化参数
+        self.parameters = self.DEFAULT_PARAMETERS.copy()
+        self.parameters['width'] = self.default_size.width()
+        self.parameters['height'] = self.default_size.height()
+        
+    # 获取参数配置
+    def get_parameters(self):
+        return self.parameters
+    
+    # 设置参数
+    def set_parameters(self, parameters):
+        self.parameters.update(parameters)
+        # 更新宽度和高度
+        self.size = QtCore.QSize(self.parameters['width'], self.parameters['height'])
 
 
 # 注册场景到像素图导出器
@@ -117,6 +138,13 @@ class SceneExporterBase(ExporterBase):
 class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类，用于定义场景导出器的通用方法
 
     TYPE = ExporterRegistry.DEFAULT_TYPE               # 设置为默认导出类型
+    
+    # 扩展默认参数配置
+    DEFAULT_PARAMETERS = SceneExporterBase.DEFAULT_PARAMETERS.copy()
+    DEFAULT_PARAMETERS.update({
+        'dpi': 300,             # 分辨率 (DPI)
+        'quality': 90,          # JPEG 压缩质量 (0-100)
+    })
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
     def get_user_input(self, parent):
@@ -125,12 +153,14 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
         # 创建导出对话框，让用户输入最终导出尺寸
         dialog = widgets.SceneToPixmapExporterDialog(       # 创建场景导出器对话框实例
             parent=parent,                                  # 场景导出器对话框的父窗口
-            default_size=self.default_size,                 # 场景导出器对话框的默认导出大小
+            default_size=self.default_size,
+            default_dpi=self.parameters['dpi'],
+            default_quality=self.parameters['quality'],
         )
         if dialog.exec():                                   # 若场景导出器对话框执行成功
-            size = dialog.value()                           # 获取场景导出器对话框中用户输入的导出大小
-            logger.debug(f'Got export size {size}')         # 记录用户输入的导出大小
-            self.size = size                                # 将用户输入的导出大小赋值给场景导出器基类的属性
+            params = dialog.value()
+            self.set_parameters(params)
+            logger.debug(f'Got export parameters: {params}')
             return True                                     # 返回True表示用户输入成功
         else:                                               # 若场景导出器对话框执行失败
             return False                                    # 返回False表示用户输入失败
@@ -172,7 +202,7 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
             return                                          # 若导出器实例存在且取消导出标志为True，则直接返回，不导出图像
 
         # 若导出图像保存失败
-        if not image.save(filename, quality=90):
+        if not image.save(filename, quality=self.parameters['quality']):
             self.handle_export_error(filename, 'Error writing file', worker) # 处理导出错误，参数为导出文件名、错误信息和导出器实例
             return                                                           # 返回，不继续导出
 
@@ -185,9 +215,16 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
 class SceneToSVGExporter(SceneExporterBase):
 
     TYPE = 'svg'                        # 场景导出器基类的导出类型属性，值为'svg'，表示导出为SVG格式
+    
+    # 扩展默认参数配置
+    DEFAULT_PARAMETERS = SceneExporterBase.DEFAULT_PARAMETERS.copy()
+    DEFAULT_PARAMETERS.update({
+        'dpi': 96,             # SVG 通常使用 96 DPI
+    })
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
     def get_user_input(self, parent):
+        # SVG 导出使用默认大小，不需要用户输入
         self.size = self.default_size   # 将场景导出器基类的默认导出大小赋值给场景导出器基类的属性
         return True                     # 返回True表示用户输入成功
 
@@ -318,6 +355,13 @@ class SceneToSVGExporter(SceneExporterBase):
 class SceneToPDFExporter(SceneExporterBase):
 
     TYPE = 'pdf'                        # 场景导出器基类的导出类型属性，值为'pdf'，表示导出为PDF格式
+    
+    # 扩展默认参数配置
+    DEFAULT_PARAMETERS = SceneExporterBase.DEFAULT_PARAMETERS.copy()
+    DEFAULT_PARAMETERS.update({
+        'dpi': 300,             # 分辨率 (DPI)
+        'margin_percent': 3,    # 页边距百分比 (0-100)
+    })
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
     def get_user_input(self, parent):
@@ -326,11 +370,13 @@ class SceneToPDFExporter(SceneExporterBase):
         dialog = widgets.SceneToPixmapExporterDialog(
             parent=parent,
             default_size=self.default_size,
+            default_dpi=self.parameters['dpi'],
+            default_margin=self.parameters['margin_percent'],
         )
         if dialog.exec():
-            size = dialog.value()
-            logger.debug(f'Got export size {size}')
-            self.size = size
+            params = dialog.value()
+            self.set_parameters(params)
+            logger.debug(f'Got export parameters: {params}')
             return True
         else:
             return False
@@ -354,10 +400,10 @@ class SceneToPDFExporter(SceneExporterBase):
             # 设置纸张大小和分辨率
             # 在PyQt6中，setPaperSize已被setPageSize替代
             printer.setPageSize(QtGui.QPageSize(QtCore.QSizeF(self.size.width(), self.size.height()), QtGui.QPageSize.Unit.Point))
-            printer.setResolution(300)  # 300 DPI
+            printer.setResolution(self.parameters['dpi'])  # 使用参数中的DPI
             
             # 按比例调整边距
-            margin = self.margin * self.size.width() / self.default_size.width()
+            margin = max(self.size.width(), self.size.height()) * self.parameters['margin_percent'] / 100
             logger.debug(f'Final export margin: {margin}')
             
             # 创建绘图器并渲染场景
