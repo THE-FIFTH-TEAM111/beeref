@@ -13,17 +13,12 @@ from beeref.fileio.export import SceneToPixmapExporter
 
 @patch('beeref.widgets.SceneToPixmapExporterDialog.exec', return_value=True)
 @patch('beeref.widgets.SceneToPixmapExporterDialog.value',
-       return_value={'width': 100, 'height': 200, 'dpi': 300, 'quality': 90, 'margin_percent': 3})
+       return_value=QtCore.QSize(100, 200))
 def test_scene_to_pixmap_exporter_get_user_input(value_mock, exec_mock, view):
     exporter = SceneToPixmapExporter(view.scene)
     value = exporter.get_user_input(None)
     assert value is True
     assert exporter.size == QtCore.QSize(100, 200)
-    assert exporter.parameters['width'] == 100
-    assert exporter.parameters['height'] == 200
-    assert exporter.parameters['dpi'] == 300
-    assert exporter.parameters['quality'] == 90
-    assert exporter.parameters['margin_percent'] == 3
 
 
 @patch('beeref.widgets.SceneToPixmapExporterDialog.exec', return_value=False)

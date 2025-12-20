@@ -130,14 +130,8 @@ class DebugLogDialog(QtWidgets.QDialog):
 class SceneToPixmapExporterDialog(QtWidgets.QDialog):
     MIN_SIZE = 10
     MAX_SIZE = 100000
-    MIN_DPI = 72
-    MAX_DPI = 600
-    MIN_QUALITY = 0
-    MAX_QUALITY = 100
-    MIN_MARGIN = 0
-    MAX_MARGIN = 50
 
-    def __init__(self, parent, default_size, default_dpi=300, default_quality=90, default_margin=3):
+    def __init__(self, parent, default_size):
         super().__init__(parent)
         self.default_size = default_size
         if (self.default_size.width() > self.MAX_SIZE
@@ -168,32 +162,6 @@ class SceneToPixmapExporterDialog(QtWidgets.QDialog):
         self.height_input.setValue(default_size.height())
         self.height_input.valueChanged.connect(self.on_height_changed)
         layout.addWidget(self.height_input, 1, 1)
-        
-        # DPI setting
-        dpi_label = QtWidgets.QLabel('DPI:')
-        layout.addWidget(dpi_label, 2, 0)
-        self.dpi_input = QtWidgets.QSpinBox()
-        self.dpi_input.setRange(self.MIN_DPI, self.MAX_DPI)
-        self.dpi_input.setValue(default_dpi)
-        layout.addWidget(self.dpi_input, 2, 1)
-        
-        # Quality setting (for JPEG)
-        quality_label = QtWidgets.QLabel('Quality:')
-        layout.addWidget(quality_label, 3, 0)
-        self.quality_input = QtWidgets.QSpinBox()
-        self.quality_input.setRange(self.MIN_QUALITY, self.MAX_QUALITY)
-        self.quality_input.setValue(default_quality)
-        self.quality_input.setSuffix('%')
-        layout.addWidget(self.quality_input, 3, 1)
-        
-        # Margin setting (for PDF)
-        margin_label = QtWidgets.QLabel('Margin:')
-        layout.addWidget(margin_label, 4, 0)
-        self.margin_input = QtWidgets.QSpinBox()
-        self.margin_input.setRange(self.MIN_MARGIN, self.MAX_MARGIN)
-        self.margin_input.setValue(default_margin)
-        self.margin_input.setSuffix('%')
-        layout.addWidget(self.margin_input, 4, 1)
 
         # Bottom row of buttons
         buttons = QtWidgets.QDialogButtonBox(
@@ -202,7 +170,7 @@ class SceneToPixmapExporterDialog(QtWidgets.QDialog):
 
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons, 5, 1)
+        layout.addWidget(buttons, 3, 1)
 
     def on_width_changed(self, width):
         if not self.ignore_change:
@@ -221,13 +189,8 @@ class SceneToPixmapExporterDialog(QtWidgets.QDialog):
             self.ignore_change = False
 
     def value(self):
-        return {
-            'width': self.width_input.value(),
-            'height': self.height_input.value(),
-            'dpi': self.dpi_input.value(),
-            'quality': self.quality_input.value(),
-            'margin_percent': self.margin_input.value(),
-        }
+        return QtCore.QSize(self.width_input.value(),
+                            self.height_input.value())
 
 
 class ChangeOpacityDialog(QtWidgets.QDialog):
