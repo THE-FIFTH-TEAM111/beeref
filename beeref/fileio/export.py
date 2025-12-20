@@ -19,7 +19,7 @@ import logging                              # 用于记录日志
 import pathlib                              # 用于处理文件路径
 from xml.etree import ElementTree as ET     # 用于创建XML文档
 
-from PyQt6 import QtCore, QtGui, QtPrintSupport             # 用于处理Qt的核心功能、图形用户界面和打印功能
+from PyQt6 import QtCore, QtGui             # 用于处理Qt的核心功能和图形用户界面
 
 from .errors import BeeFileIOError          # 自定义异常类，用于导出时的错误处理
 from beeref import constants, widgets       # 导入 BeeRef 常量和小部件
@@ -180,7 +180,7 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
         self.emit_progress(worker, 1)                 # 发送导出进度信号，参数为导出器实例和导出进度值1
         self.emit_finished(worker, filename, [])      # 发送导出完成信号，参数为导出器实例、导出文件名和空列表
 
-# 注册场景到SVG
+# 注册场景到SVG，
 @register_exporter
 class SceneToSVGExporter(SceneExporterBase):
 
@@ -311,81 +311,6 @@ class SceneToSVGExporter(SceneExporterBase):
 
         logger.debug('Export finished')                     # 调试日志，输出导出任务完成
         self.emit_finished(worker, filename, [])            # 发送导出任务完成信号，参数为导出任务的工作线程、文件名和空列表
-
-
-# 注册场景到PDF
-@register_exporter
-class SceneToPDFExporter(SceneExporterBase):
-
-    TYPE = 'pdf'                        # 场景导出器基类的导出类型属性，值为'pdf'，表示导出为PDF格式
-
-    # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
-    def get_user_input(self, parent):
-        """Ask user for final export size."""
-        # 创建导出对话框，让用户输入最终导出尺寸
-        dialog = widgets.SceneToPixmapExporterDialog(
-            parent=parent,
-            default_size=self.default_size,
-        )
-        if dialog.exec():
-            size = dialog.value()
-            logger.debug(f'Got export size {size}')
-            self.size = size
-            return True
-        else:
-            return False
-
-    # 场景导出器基类的导出方法，用于将场景导出为PDF文件
-    def export(self, filename, worker=None):
-        logger.debug(f'Exporting scene to {filename}')
-        self.emit_begin_processing(worker, 1)
-
-        if worker and worker.canceled:
-            logger.debug('Export canceled')
-            self.emit_finished(worker, filename, [])
-            return
-
-        try:
-            # 创建PDF打印机对象
-            printer = QtPrintSupport.QPrinter(QtPrintSupport.QPrinter.PrinterMode.HighResolution)
-            printer.setOutputFormat(QtPrintSupport.QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(filename)
-            
-            # 设置纸张大小和分辨率
-            # 在PyQt6中，setPaperSize已被setPageSize替代
-            printer.setPageSize(QtGui.QPageSize(QtCore.QSizeF(self.size.width(), self.size.height()), QtGui.QPageSize.Unit.Point))
-            printer.setResolution(300)  # 300 DPI
-            
-            # 按比例调整边距
-            margin = self.margin * self.size.width() / self.default_size.width()
-            logger.debug(f'Final export margin: {margin}')
-            
-            # 创建绘图器并渲染场景
-            painter = QtGui.QPainter()
-            if not painter.begin(printer):
-                self.handle_export_error(filename, 'Error creating PDF painter', worker)
-                return
-            
-            # 定义目标矩形
-            target_rect = QtCore.QRectF(
-                margin,
-                margin,
-                self.size.width() - 2 * margin,
-                self.size.height() - 2 * margin)
-            logger.trace(f'Final export target_rect: {target_rect}')
-            
-            self.scene.render(painter,
-                            source=self.scene.itemsBoundingRect(),
-                            target=target_rect)
-            
-            painter.end()
-            
-            logger.debug('Export finished')
-            self.emit_progress(worker, 1)
-            self.emit_finished(worker, filename, [])
-        except Exception as e:
-            self.handle_export_error(filename, str(e), worker)
-            return
 
 
 # 图像到目录导出器
