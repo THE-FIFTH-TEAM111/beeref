@@ -506,15 +506,31 @@ class BeeGraphicsView(MainControlsMixin,
             self.do_save(self.filename, create_new=False) # 保存场景到当前文件名，不创建新文件
 
     def on_action_export_scene(self): # 导出场景槽函数
-        directory = os.path.dirname(self.filename) if self.filename else None # 如果有文件名，获取文件名所在目录，否则为 None
+        # 设置默认文件名和目录
+        default_filename = 'beeref_export'
+        directory = os.path.dirname(self.filename) if self.filename else None
+        
+        # 如果有当前文件名，使用它作为基础生成默认导出文件名
+        if self.filename:
+            base_name = os.path.splitext(os.path.basename(self.filename))[0]
+            default_filename = f'{base_name}_export'
+            
+        # 完整的默认路径
+        if directory:
+            default_path = os.path.join(directory, default_filename)
+        else:
+            default_path = default_filename
+            
         filename, formatstr = QtWidgets.QFileDialog.getSaveFileName( # 获取保存文件对话框
             parent=self, # 设置进度对话框父窗口为主窗口
-            caption='Export Scene to Image', # 导出场景对话框标题
-            directory=directory, # 导出场景对话框默认目录为当前文件名所在目录       
-            filter=';;'.join(('Image Files (*.png *.jpg *.jpeg *.svg)',
+            caption='Export Scene', # 导出场景对话框标题
+            directory=default_path, # 导出场景对话框默认目录和文件名
+            filter=';;'.join(('All Export Formats (*.png *.jpg *.jpeg *.svg *.pdf)',
+                              'Image Files (*.png *.jpg *.jpeg *.svg)',
                               'PNG (*.png)',
                               'JPEG (*.jpg *.jpeg)',
-                              'SVG (*.svg)')))
+                              'SVG (*.svg)',
+                              'PDF (*.pdf)')))
 
         if not filename: # 如果没有文件名
             return # 如果没有文件名，返回   
