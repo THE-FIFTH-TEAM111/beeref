@@ -50,6 +50,12 @@ menu_structure = [
             MENU_SEPARATOR,
             'raise_to_top',
             'lower_to_bottom',
+            MENU_SEPARATOR,
+            'toggle_favorite',  
+            {
+                'menu': '&Favourites',
+                'items': '_build_favorites_menu',
+            },
         ],
     },
     {

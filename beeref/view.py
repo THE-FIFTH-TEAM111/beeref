@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with BeeRef.  If not, see <https://www.gnu.org/licenses/>.
-
+import math
 from functools import partial
 import logging
 import os
@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from beeref.actions import ActionsMixin, actions
+from beeref.actions.actions import Action  # 添加这一行导入Action类
 from beeref import commands
 from beeref.config import CommandlineArgs, BeeSettings, KeyboardSettings
 from beeref import constants
@@ -521,15 +522,15 @@ class WatermarkDialog(QDialog):
 # ------------------------------
 # 主视图类
 # ------------------------------
-class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
+class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     PAN_MODE = 1
     ZOOM_MODE = 2
     SAMPLE_COLOR_MODE = 3
 
-    def __init__(self, app, parent=None):
-        super().__init__(parent)
+    def __init__(self, app, window, parent=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.app = app
-        self.parent = parent
+        self.parent = window
         self.settings = BeeSettings()
         self.keyboard_settings = KeyboardSettings()
         self.welcome_overlay = widgets.welcome_overlay.WelcomeOverlay(self)
@@ -557,8 +558,9 @@ class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
 
         self.build_menu_and_actions()
         self.control_target = self
-        self.init_main_controls(main_window=parent)
-
+        self.init_main_controls(main_window=window)
+        self.compare_mode = False 
+        self.setup_compare_mode()
         if commandline_args.filenames:
             fn = commandline_args.filenames[0]
             if os.path.splitext(fn)[1] == '.bee':
@@ -580,6 +582,98 @@ class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
             self.settings.update_recent_files(value)
             self.update_menu_and_actions()
 
+    def setup_compare_mode(self):
+        """设置对比模式。"""
+        # 添加对比模式快捷键
+        self.compare_shortcut = QtGui.QShortcut(
+            QtGui.QKeySequence('Ctrl+Shift+C'), self)
+        self.compare_shortcut.activated.connect(self.toggle_compare_mode)
+    def toggle_compare_mode(self):
+        """切换对比模式。"""
+        self.compare_mode = not self.compare_mode
+        self.update()
+        
+    def draw_comparison_grid(self):
+        """在对比模式下绘制网格以显示收藏项。"""
+        import math
+        import os
+
+        # 获取所有收藏项
+        all_items = [item for item in self.scene.items() 
+                        if hasattr(item, 'pixmap')]
+
+        if not all_items:
+            return
+
+        # 计算网格布局
+        num_items = len(all_items)
+        cols = int(math.ceil(math.sqrt(num_items)))
+        rows = int(math.ceil(num_items / cols))
+
+        # 计算单元格大小
+        width = self.viewport().width()
+        height = self.viewport().height()
+        cell_width = width / cols
+        cell_height = height / rows
+
+        painter = QtGui.QPainter(self.viewport())
+        painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
+
+        # 获取当前视图的缩放比例
+        scale_factor = self.get_scale()
+
+        # 绘制网格背景
+        painter.fillRect(0, 0, width, height, QtGui.QColor(50, 50, 50))
+
+        # 绘制所有收藏项
+        for i, item in enumerate(all_items):
+            row = i // cols
+            col = i % cols
+    
+            x = col * cell_width
+            y = row * cell_height
+    
+            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
+            pixmap = item.pixmap()
+            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
+            scaled_pixmap = pixmap.scaled(
+                int(cell_width / scale_factor), 
+                int(cell_height / scale_factor),
+                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                QtCore.Qt.TransformationMode.SmoothTransformation
+            )
+    
+            # 居中绘制
+            dx = (cell_width - scaled_pixmap.width() * scale_factor) // 2
+            dy = (cell_height - scaled_pixmap.height() * scale_factor) // 2
+        
+            # 保存当前绘制状态
+            painter.save()
+        
+            # 应用缩放变换
+            painter.translate(x + dx, y + dy)
+            painter.scale(scale_factor, scale_factor)
+        
+            # 绘制缩放后的图像
+            painter.drawPixmap(0, 0, scaled_pixmap)
+        
+            # 恢复绘制状态
+            painter.restore()
+        
+            # 绘制边框
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 223, 0), 2))
+            painter.drawRect(int(x), int(y), int(cell_width), int(cell_height))
+        
+            # 绘制文件名
+            font = painter.font()
+            font.setPointSize(10)
+            painter.setFont(font)
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255)))
+    
+            filename = os.path.basename(item.filename) if item.filename else f'Item {i+1}'
+            painter.drawText(int(x + 5), int(y + 20), filename)
+
+        painter.end()
     def cancel_active_modes(self):
         self.scene.cancel_active_modes()
         self.cancel_sample_color_mode()
@@ -748,6 +842,11 @@ class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
 
     def on_action_select_all(self):
         self.scene.select_all_items()
+    def toggle_compare_mode(self):
+        """切换对比模式。"""
+        self.compare_mode = not self.compare_mode
+        self.viewport().update()# 确保视图内容立即重绘
+        self.update()
 
     def on_action_deselect_all(self):
         self.scene.deselect_all_items()
@@ -755,13 +854,41 @@ class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
     def on_action_delete_items(self):
         logger.debug('Deleting items...')
         self.cancel_active_modes()
-        self.undo_stack.push(commands.DeleteItems(self.scene, self.scene.selectedItems(user_only=True)))
+        self.undo_stack.push(commands.DeleteItems(self.scene, self.scene.selectedItems(user_only=True), self))
 
     def on_action_cut(self):
         logger.debug('Cutting items...')
         self.on_action_copy()
-        self.undo_stack.push(commands.DeleteItems(self.scene, self.scene.selectedItems(user_only=True)))
+        self.undo_stack.push(commands.DeleteItems(self.scene, self.scene.selectedItems(user_only=True), self))
 
+    def on_action_toggle_favorite(self):
+        """切换选中项的收藏状态。"""
+        items = self.scene.selectedItems(user_only=True)
+        if items:
+            self.undo_stack.push(commands.ToggleFavorite(items, self.scene))
+            self.update_menu_and_actions()
+    def on_action_jump_to_favorite(self, item): 
+        """跳转到指定的收藏项。""" 
+        # 检查项目是否仍然在场景中
+        if item.scene() != self.scene:
+            # 如果项目不在场景中，更新收藏菜单并返回
+            self.update_menu_and_actions()
+            return
+    
+        # 清除当前选择 
+        self.scene.clearSelection() 
+        # 选择目标项 
+        item.setSelected(True) 
+        # 将项目移到最前面
+        item.bring_to_front()
+        # 重置视图变换
+        self.resetTransform()
+        # 确保项目完整显示在视图中，保持纵横比
+        self.fitInView(item.boundingRect(),Qt.AspectRatioMode.KeepAspectRatio)
+        # 稍微缩小一点，留一些边距
+        self.scale(0.9, 0.9)
+        # 确保视图更新 
+        self.viewport().update()    
     def on_action_raise_to_top(self):
         self.scene.raise_to_top()
 
@@ -1087,15 +1214,26 @@ class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(dirname))
 
     def on_selection_changed(self):
-        logger.debug('Currently selected items: %s', len(self.scene.selectedItems(user_only=True)))
-        self.actiongroup_set_enabled('active_when_selection', self.scene.has_selection())
-        self.actiongroup_set_enabled('active_when_single_image', self.scene.has_single_image_selection())
+        # 检查场景是否已被删除
+        if not self.scene:
+            return
+    
+        try:
+            logger.debug('Currently selected items: %s', len(self.scene.selectedItems(user_only=True)))
+            self.actiongroup_set_enabled('active_when_selection', self.scene.has_selection())
+            self.actiongroup_set_enabled('active_when_single_image', self.scene.has_single_image_selection())
 
-        if self.scene.has_selection():
-            item = self.scene.selectedItems(user_only=True)[0]
-            grayscale = getattr(item, 'grayscale', False)
+            # 初始化grayscale为默认值
+            grayscale = False
+            if self.scene.has_selection():
+                item = self.scene.selectedItems(user_only=True)[0]
+                grayscale = getattr(item, 'grayscale', False)
             actions.actions['grayscale'].qaction.setChecked(grayscale)
-        self.viewport().repaint()
+        except RuntimeError:
+        # 捕获场景已被删除的异常
+            logger.debug('Scene has been deleted, skipping selection update')
+        finally:
+            self.viewport().repaint()
 
     def on_cursor_changed(self, cursor):
         if self.active_mode is None:
@@ -1412,3 +1550,168 @@ class BeeGraphicsView(MainControlsMixin, QGraphicsView, ActionsMixin):
         
         # 恢复缩放状态
         painter.restore()
+    def paintEvent(self, event):
+        """重写绘制事件以处理对比模式。"""
+        if self.compare_mode:
+            self.draw_comparison_grid()
+        else:
+            super().paintEvent(event)
+class BeeView(QtWidgets.QGraphicsView):
+    # ... 现有代码 ...
+    
+    def __init__(self, *args, **kwargs):
+        # ... 现有初始化代码 ...
+        self.compare_mode = False
+        self.compare_items = []
+        self.setupCompareMode()
+        
+    def setupCompareMode(self):
+        """设置对比模式快捷键和菜单。"""
+        self.compare_action = QtWidgets.QAction(_('Toggle Compare Mode'), self)
+        self.compare_action.setShortcut('Ctrl+Shift+C')
+        self.compare_action.triggered.connect(self.toggleCompareMode)
+        self.addAction(self.compare_action)
+        
+    def toggleCompareMode(self):
+        """切换对比模式。"""
+        self.compare_mode = not self.compare_mode
+        self.scene().update()
+        
+    def paintEvent(self, event):
+        """重写绘制事件以处理对比模式。"""
+        super().paintEvent(event)
+        
+        if self.compare_mode:
+            self.drawComparisonGrid()
+            
+    
+    def drawComparisonGrid(self):
+        """在对比模式下绘制网格以显示收藏项。"""
+        # 获取所有图像项目（移除收藏项筛选条件）
+        all_items = [item for item in self.scene().items() 
+                    if hasattr(item, 'pixmap')]  # 确保是有pixmap属性的图像项目
+
+        if not all_items:
+            return
+        
+        # 计算网格布局
+        num_items = len(all_items)
+        cols = int(math.ceil(math.sqrt(num_items)))
+        rows = int(math.ceil(num_items / cols))
+    
+        width = self.viewport().width()
+        height = self.viewport().height()
+        cell_width = width / cols
+        cell_height = height / rows
+    
+        painter = QtGui.QPainter(self.viewport())
+        painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
+    
+        # 获取当前视图的缩放比例
+        scale_factor = self.get_scale()
+    
+        # 绘制网格背景
+        painter.fillRect(0, 0, width, height, QtGui.QColor(50, 50, 50))
+    
+        # 绘制所有收藏项
+        for i, item in enumerate(all_items):
+            row = i // cols
+            col = i % cols
+        
+            x = col * cell_width
+            y = row * cell_height
+        
+            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
+            pixmap = item.pixmap()
+            scaled_pixmap = pixmap.scaled(
+                int(cell_width / scale_factor), 
+                int(cell_height / scale_factor),
+                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                QtCore.Qt.TransformationMode.SmoothTransformation
+            )
+        
+            # 居中绘制
+            dx = (cell_width - scaled_pixmap.width() * scale_factor) // 2
+            dy = (cell_height - scaled_pixmap.height() * scale_factor) // 2
+        
+            # 保存当前绘制状态
+            painter.save()
+        
+            # 应用缩放变换
+            painter.translate(x + dx, y + dy)
+            painter.scale(scale_factor, scale_factor)
+        
+            # 绘制缩放后的图像
+            painter.drawPixmap(0, 0, scaled_pixmap)
+        
+            # 恢复绘制状态
+            painter.restore()
+        
+            # 绘制边框
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 223, 0), 2))
+            painter.drawRect(x, y, cell_width, cell_height)
+        
+            # 绘制文件名
+            font = painter.font()
+            font.setPointSize(10)
+            painter.setFont(font)
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255)))
+            
+            filename = os.path.basename(item.filename) if item.filename else f'Item {i+1}'
+            painter.drawText(int(x + 5), int(y + 20), filename)
+    
+        painter.end()
+
+    def _build_favorites_menu(self, menu=None):
+        """
+        构建收藏夹菜单项
+
+        参数:
+            menu: 收藏夹子菜单对象（可选）
+        """
+        # 如果提供了菜单，则保存为收藏夹子菜单
+        if menu:
+            self._favorites_submenu = menu
+        # 清除现有收藏夹菜单内容
+        self._clear_favorites_menu()
+
+        # 获取所有收藏项 - 修复：获取所有场景项目而不仅仅是选中项
+        favorite_items = [item for item in self.scene.items(user_only=True)
+                        if hasattr(item, 'favorite') and item.favorite]
+
+        # 为每个收藏项创建动作
+        for i, item in enumerate(favorite_items):
+            action_id = f'favorites_item_{i}'
+            # 创建动作定义
+            action = Action(id=action_id,
+                            menu_id='_build_favorites_menu',
+                            text=f'Item {i + 1}')
+            # 将动作添加到actions字典
+            self.actions[action_id] = action
+
+            # 创建动作对象，显示文件名（不含路径）
+            filename = os.path.basename(item.filename) if item.filename else f'Item {i+1}'
+            qaction = QtGui.QAction(filename, self)
+            # 连接触发信号到跳转到收藏项的方法（绑定当前收藏项）
+            qaction.triggered.connect(
+                partial(self.on_action_jump_to_favorite, item))
+            # 将动作添加到窗口
+            self.addAction(qaction)
+            # 保存QAction到动作定义
+            action.qaction = qaction
+            # 将动作添加到收藏夹子菜单
+            self._favorites_submenu.addAction(qaction)
+
+    def _clear_favorites_menu(self):
+        """清除收藏夹菜单中的所有动作"""
+        if hasattr(self, '_favorites_submenu'):
+            # 移除子菜单中所有动作的关联
+            for action in self._favorites_submenu.actions():
+                self.removeAction(action)
+            # 清空子菜单
+            self._favorites_submenu.clear()
+            # 从actions字典中移除收藏夹相关的动作
+            for key in list(self.actions.keys()):
+                if key.startswith('favorites_item_'):
+                    self.actions[key].qaction = None
+                    del self.actions[key]

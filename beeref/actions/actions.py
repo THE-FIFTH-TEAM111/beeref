@@ -486,7 +486,14 @@ actions = ActionList([
         checkable=True,  # 可勾选：启用/禁用窗口置顶
         callback='on_action_always_on_top',  # 触发方法：on_action_always_on_top
     ),
-
+    # 新增：切换收藏状态动作
+    Action(
+        id='toggle_favorite',
+        text='Toggle &Favorite',
+        shortcuts=['Ctrl+F'],
+        callback='on_action_toggle_favorite',
+            group='active_when_selection',
+    ),
     # 13. 应用设置类动作
     Action(
         id='settings',  # 动作唯一标识：打开设置
