@@ -27,7 +27,12 @@ from beeref import commands  # 导入beeref项目的命令模块，处理用户�
 from beeref.config import BeeSettings  # 导入配置设置类，管理应用程序的用户配置
 from beeref.items import item_registry, BeeErrorItem, sort_by_filename  # 导入项目项相关组件：注册表、错误项和文件名排序函数
 from beeref.selection import MultiSelectItem, RubberbandItem  # 导入选择相关类：多选项和橡皮筋选择框
-
+#============新增============================
+from typing import List  # 补充类型提示依赖
+from beeref.tag_manager import TagManager  # 导入标签管理器
+from beeref.fileio.sql import SQLiteIO  # 导入SQLiteIO
+import tempfile
+from beeref.items import BeePixmapItem
 
 logger = logging.getLogger(__name__)  # 创建当前模块的日志记录器
 
@@ -54,7 +59,15 @@ class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自
         self.settings = BeeSettings()  # 初始化设置对象
         self.clear()  # 清除场景内容
         self._clear_ongoing = False  # 初始化清除操作标志为False
-
+        # ==================新增标签功能初始化
+        # scene.py中初始化SQLiteIO
+        temp_filename = tempfile.NamedTemporaryFile(suffix='.bee', delete=False).name
+        self.sql_io = SQLiteIO(filename=temp_filename, scene=self, create_new=True)
+        self.db_conn = self.sql_io.connection  # 获取数据库连接
+        self.tag_manager = TagManager(self.db_conn)
+        self.tag_manager.filter_applied.connect(self.on_filter_applied)
+        self.all_image_items = []  # 存储所有用户图像项（用于标签筛选）
+        # =======================================================
     def clear(self):
         self._clear_ongoing = True # 设置清理进行中标志，避免清理过程中触发其他依赖状态的逻辑
         super().clear() # 调用父类的清除方法，清除场景中的所有项目
@@ -70,7 +83,11 @@ class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自
     def removeItem(self, item): # 从场景中移除项目
         logger.debug(f'Removing item {item}') # 记录移除项目的调试日志
         super().removeItem(item) # 调用父类的移除项目方法，将项目从场景中移除
-
+        #======================= 新增：记录用户图像项
+        if hasattr(item, 'save_id') and getattr(item, 'is_image', False):
+            self.all_image_items.append(item)
+            self.tag_manager.all_images = self.all_image_items  # 同步到标签管理器
+        #==========================================
     def cancel_active_modes(self): # 取消所有活动模式
         """Cancels ongoing crop modes, rubberband modes etc, if there are
         any.
@@ -565,3 +582,19 @@ class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自
             if selected:
                 item.setSelected(True) # 设置项目实例为选中状态
                 item.bring_to_front() # 将项目实例 bring_to_front 到最前面
+    #=============新增================================
+    def on_filter_applied(self, filtered_image_ids: List[str]):
+        """根据标签筛选结果显示/隐藏图像"""
+        for img_item in self.all_image_items:
+            # 图像的save_id作为唯一标识，与筛选的image_ids匹配
+            img_item.setVisible(str(img_item.save_id) in filtered_image_ids)
+    def addItem(self, item):
+        super().addItem(item)
+    # 若为用户添加的图片项，同步到TagManager
+        if isinstance(item, BeePixmapItem):
+            self.tag_manager.all_images.append(item)
+
+    def removeItem(self, item):
+        super().removeItem(item)
+        if isinstance(item, BeePixmapItem) and item in self.tag_manager.all_images:
+            self.tag_manager.all_images.remove(item)

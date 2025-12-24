@@ -14,19 +14,23 @@
 # along with BeeRef.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
+from functools import partial
+import uuid
 
-from PyQt6 import QtCore, QtGui
+from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt
 
 from beeref import commands, widgets
 from beeref.items import BeePixmapItem
 from beeref import fileio
+from PyQt6.QtWidgets import QMenu, QFileDialog
+from beeref.widgets.tag_dialogs import TagEditDialog, TagSelectDialog
+from beeref.commands import AddTagCommand
+
+logger = logging.getLogger(__name__)
 
 
-logger = logging.getLogger(__name__) # 主控件日志记录器，用于记录主控件的日志信息
-
-
-class MainControlsMixin: # 主控件混合类，用于处理主窗口和欢迎叠加层的基本控件
+class MainControlsMixin:
     """Basic controls shared by the main view and the welcome overlay:
 
     * Right-click menu
@@ -34,114 +38,255 @@ class MainControlsMixin: # 主控件混合类，用于处理主窗口和欢迎�
     * Moving the window without title bar
     """
 
-    def init_main_controls(self, main_window): # 初始化主控件，用于处理主窗口和欢迎叠加层的基本控件
-        self.main_window = main_window # 主窗口引用，用于访问主窗口的属性和方法
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu) # 设置上下文菜单策略为自定义上下文菜单，用于处理右键点击事件
-        self.customContextMenuRequested.connect( # 自定义上下文菜单请求信号槽函数，用于处理右键点击事件 
-            self.control_target.on_context_menu) # 自定义上下文菜单请求信号槽函数，用于处理右键点击事件，调用控制目标的上下文菜单槽函数
-        self.setAcceptDrops(True) # 设置接受拖放事件，用于处理文件拖放事件
-        self.movewin_active = False  
+    def __init__(self, *args, **kwargs):  # 改为接受可变参数
+        super().__init__(*args, **kwargs)  # 调用父类构造
+        self.tag_cache = {}  # 初始化本地缓存
 
-    def on_action_movewin_mode(self): # 移动窗口模式槽函数，用于处理移动窗口模式的切换
-        if self.movewin_active: # 如果移动窗口模式已激活
-            # Pressing the same shortcut again should end the action
-            self.exit_movewin_mode() # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
+    def init_main_controls(self, main_window):
+        self.main_window = main_window
+        self.tag_cache = {}  # 在这里初始化缓存
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(
+            self.control_target.on_context_menu)
+        self.setAcceptDrops(True)
+        self.movewin_active = False
+        self.init_tag_menu()
+
+    def on_action_movewin_mode(self):
+        if self.movewin_active:
+            self.exit_movewin_mode()
         else:
-            self.enter_movewin_mode() # 进入移动窗口模式槽函数，用于处理移动窗口模式的切换
+            self.enter_movewin_mode()
 
-    @property # viewport_or_self属性，用于返回视口或自身，用于处理移动窗口模式的切换
-    def viewport_or_self(self): # viewport_or_self属性，用于返回视口或自身，用于处理移动窗口模式的切换
-        if hasattr(self, 'viewport'): # 如果主控件有视口属性
-            return self.viewport() # 返回视口
-        return self # 返回自身  
+    @property
+    def viewport_or_self(self):
+        if hasattr(self, 'viewport'):
+            return self.viewport()
+        return self  
 
-    def enter_movewin_mode(self): # 进入移动窗口模式槽函数，用于处理移动窗口模式的切换
-        logger.debug('Entering movewin mode') # 进入移动窗口模式槽函数，用于处理移动窗口模式的切换
-        self.setMouseTracking(True) # 设置鼠标跟踪，用于处理移动窗口模式的切换
-        self.movewin_active = True # 移动窗口模式已激活
-        self.viewport_or_self.setCursor(Qt.CursorShape.SizeAllCursor) # 设置视口或自身的光标为大小调整光标，用于处理移动窗口模式的切换
-        self.event_start = QtCore.QPointF(self.cursor().pos()) # 记录鼠标点击位置，用于处理移动窗口模式的切换
-        if hasattr(self, 'disable_mouse_events'): # 如果主控件有禁用鼠标事件属性
-            self.disable_mouse_events() # 禁用鼠标事件，用于处理移动窗口模式的切换  
+    def enter_movewin_mode(self):
+        logger.debug('Entering movewin mode')
+        self.setMouseTracking(True)
+        self.movewin_active = True
+        self.viewport_or_self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.event_start = QtCore.QPointF(self.cursor().pos())
+        if hasattr(self, 'disable_mouse_events'):
+            self.disable_mouse_events()  
 
-    def exit_movewin_mode(self): # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-        logger.debug('Exiting movewin mode') # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-        self.setMouseTracking(False) # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-        self.movewin_active = False # 移动窗口模式未激活
-        self.viewport_or_self.unsetCursor() # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-        if hasattr(self, 'enable_mouse_events'): # 如果主控件有启用鼠标事件属性
-            self.enable_mouse_events() # 启用鼠标事件，用于处理移动窗口模式的切换  
+    def exit_movewin_mode(self):
+        logger.debug('Exiting movewin mode')
+        self.setMouseTracking(False)
+        self.movewin_active = False
+        self.viewport_or_self.unsetCursor()
+        if hasattr(self, 'enable_mouse_events'):
+            self.enable_mouse_events()  
 
-    def dragEnterEvent(self, event): # 拖入事件槽函数，用于处理拖入事件
-        mimedata = event.mimeData() # 获取拖入事件的MIME数据，用于处理拖入事件
-        logger.debug(f'Drag enter event: {mimedata.formats()}') # 拖入事件槽函数，用于处理拖入事件，记录拖入事件的MIME数据格式
-        if mimedata.hasUrls(): # 如果拖入事件的MIME数据包含URL
-            event.acceptProposedAction() # 接受拖入事件的建议操作，用于处理拖入事件
-        elif mimedata.hasImage(): # 如果拖入事件的MIME数据包含图像
-            event.acceptProposedAction() # 接受拖入事件的建议操作，用于处理拖入事件 
+    def dragEnterEvent(self, event):
+        mimedata = event.mimeData()
+        logger.debug(f'Drag enter event: {mimedata.formats()}')
+        if mimedata.hasUrls():
+            event.acceptProposedAction()
+        elif mimedata.hasImage():
+            event.acceptProposedAction()
         else:
-            msg = 'Attempted drop not an image or image too big' # 拖入事件槽函数，用于处理拖入事件，记录拖入事件的MIME数据格式
-            logger.info(msg) # 拖入事件槽函数，用于处理拖入事件，记录拖入事件的MIME数据格式
-            widgets.BeeNotification(self.control_target, msg) # 拖入事件槽函数，用于处理拖入事件，显示拖入事件的MIME数据格式    
+            msg = 'Attempted drop not an image or image too big'
+            logger.info(msg)
+            widgets.BeeNotification(self.control_target, msg)    
 
-    def dragMoveEvent(self, event): # 拖动移动事件槽函数，用于处理拖动移动事件
-        event.acceptProposedAction() # 接受拖动移动事件的建议操作，用于处理拖动移动事件 
+    def dragMoveEvent(self, event):
+        event.acceptProposedAction() 
 
-    def dropEvent(self, event): # 拖放事件槽函数，用于处理拖放事件
-        mimedata = event.mimeData() # 获取拖放事件的MIME数据，用于处理拖放事件
-        logger.debug(f'Handling file drop: {mimedata.formats()}') # 拖放事件槽函数，用于处理拖放事件，记录拖放事件的MIME数据格式
-        pos = QtCore.QPoint(round(event.position().x()), # 记录拖放事件的位置，用于处理拖放事件 
-                            round(event.position().y())) # 记录拖放事件的位置，用于处理拖放事件 
-        if mimedata.hasUrls(): # 如果拖放事件的MIME数据包含URL
-            logger.debug(f'Found dropped urls: {mimedata.urls()}') # 拖放事件槽函数，用于处理拖放事件，记录拖放事件的URL
-            if not self.control_target.scene.items(): # 如果场景中没有项目（即没有插入的图片项）
-                # Check if we have a bee file we can open directly
-                path = mimedata.urls()[0] # 获取拖放事件的URL，用于处理拖放事件
-                if (path.isLocalFile() # 如果拖放事件的URL是本地文件
-                        and fileio.is_bee_file(path.toLocalFile())): # 如果拖放事件的URL是本地文件，且是BeeRef文件
-                    self.control_target.open_from_file(path.toLocalFile()) # 打开拖放事件的URL，用于处理拖放事件
-                    return # 如果拖放事件的URL是本地文件，且是BeeRef文件，直接打开文件，不进行插入图片项操作
-            self.control_target.do_insert_images(mimedata.urls(), pos)  # 插入图片项槽函数，用于处理拖放事件，插入拖放事件的URL对应的图片项
-        elif mimedata.hasImage(): # 如果拖放事件的MIME数据包含图像
-            img = QtGui.QImage(mimedata.imageData()) # 获取拖放事件的图像数据，用于处理拖放事件
-            item = BeePixmapItem(img) # 创建图片项，用于处理拖放事件
-            pos = self.control_target.mapToScene(pos) # 记录拖放事件的位置，用于处理拖放事件
+    def dropEvent(self, event):
+        mimedata = event.mimeData()
+        logger.debug(f'Handling file drop: {mimedata.formats()}')
+        pos = QtCore.QPoint(round(event.position().x()),
+                            round(event.position().y()))
+        if mimedata.hasUrls():
+            logger.debug(f'Found dropped urls: {mimedata.urls()}')
+            if not self.control_target.scene.items():
+                path = mimedata.urls()[0]
+                if (path.isLocalFile()
+                        and fileio.is_bee_file(path.toLocalFile())):
+                    self.control_target.open_from_file(path.toLocalFile())
+                    return
+            self.control_target.do_insert_images(mimedata.urls(), pos)
+        elif mimedata.hasImage():
+            img = QtGui.QImage(mimedata.imageData())
+            item = BeePixmapItem(img)
+            pos = self.control_target.mapToScene(pos)
             self.control_target.undo_stack.push(
-                commands.InsertItems(self.control_target.scene, [item], pos)) # 插入图片项槽函数，用于处理拖放事件，插入拖放事件的URL对应的图片项   
+                commands.InsertItems(self.control_target.scene, [item], pos))
         else:
-            logger.info('Drop not an image') # 拖放事件槽函数，用于处理拖放事件，记录拖放事件的MIME数据格式
+            logger.info('Drop not an image')
 
-    def mousePressEventMainControls(self, event): # 鼠标按下事件槽函数，用于处理鼠标按下事件
-        if self.movewin_active: # 如果移动窗口模式激活
-            self.exit_movewin_mode() # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-            event.accept() # 接受鼠标按下事件的建议操作，用于处理鼠标按下事件
-            return True # 如果移动窗口模式激活，直接返回True，不进行其他操作
+    def mousePressEventMainControls(self, event):
+        if self.movewin_active:
+            self.exit_movewin_mode()
+            event.accept()
+            return True
 
-        action, inverted =\
-            self.control_target.keyboard_settings.mouse_action_for_event(event) # 获取鼠标按下事件对应的操作，用于处理鼠标按下事件
+        action, inverted = self.control_target.keyboard_settings.mouse_action_for_event(event)
         if action == 'movewindow':
-            self.enter_movewin_mode() # 进入移动窗口模式槽函数，用于处理移动窗口模式的切换
-            event.accept() # 接受鼠标按下事件的建议操作，用于处理鼠标按下事件
-            return True # 如果移动窗口模式激活，直接返回True，不进行其他操作    
+            self.enter_movewin_mode()
+            event.accept()
+            return True    
 
-    def mouseMoveEventMainControls(self, event): # 鼠标移动事件槽函数，用于处理鼠标移动事件
-        if self.movewin_active: # 如果移动窗口模式激活
-            pos = self.mapToGlobal(event.position()) # 获取鼠标移动事件的全局位置，用于处理鼠标移动事件
-            delta = pos - self.event_start # 计算鼠标移动事件的 delta 向量，用于处理鼠标移动事件
-            self.event_start = pos # 更新鼠标移动事件的起始位置，用于处理鼠标移动事件
-            self.main_window.move(self.main_window.x() + int(delta.x()), # 移动主窗口槽函数，用于处理移动窗口模式的切换
-                                  self.main_window.y() + int(delta.y())) # 移动主窗口槽函数，用于处理移动窗口模式的切换
-            event.accept() # 接受鼠标移动事件的建议操作，用于处理鼠标移动事件 
-            return True # 如果移动窗口模式激活，直接返回True，不进行其他操作    
+    def mouseMoveEventMainControls(self, event):
+        if self.movewin_active:
+            pos = self.mapToGlobal(event.position())
+            delta = pos - self.event_start
+            self.event_start = pos
+            self.main_window.move(self.main_window.x() + int(delta.x()),
+                                  self.main_window.y() + int(delta.y()))
+            event.accept()
+            return True    
 
-    def mouseReleaseEventMainControls(self, event): # 鼠标释放事件槽函数，用于处理鼠标释放事件
-        if self.movewin_active: # 如果移动窗口模式激活
-            self.exit_movewin_mode() # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-            event.accept() # 接受鼠标释放事件的建议操作，用于处理鼠标释放事件
-            return True # 如果移动窗口模式激活，直接返回True，不进行其他操作    
+    def mouseReleaseEventMainControls(self, event):
+        if self.movewin_active:
+            self.exit_movewin_mode()
+            event.accept()
+            return True    
 
-    def keyPressEventMainControls(self, event): # 键盘按下事件槽函数，用于处理键盘按下事件
-        if self.movewin_active: # 如果移动窗口模式激活
-            self.exit_movewin_mode() # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
-            event.accept() # 接受键盘按下事件的建议操作，用于处理键盘按下事件
-            return True # 如果移动窗口模式激活，直接返回True，不进行其他操作    
+    def keyPressEventMainControls(self, event):
+        if self.movewin_active:
+            self.exit_movewin_mode()
+            event.accept()
+            return True    
+
+    def init_tag_menu(self):
+        """初始化顶部菜单栏和图像右键菜单的标签功能"""
+        # 1. 顶部菜单栏添加“标签”菜单
+        self.tag_menu = QMenu("标签", self.main_window)
+        self.main_window.menuBar().addMenu(self.tag_menu)
+        
+        # 新增标签菜单项
+        self.add_tag_action = self.tag_menu.addAction("新增标签")
+        self.add_tag_action.triggered.connect(self.on_add_tag)
+        
+        # 按标签导出菜单项
+        self.export_by_tag_action = self.tag_menu.addAction("按标签导出")
+        self.export_by_tag_action.triggered.connect(self.on_export_by_tag)
+
+        # 2. 初始化BeeGraphicsView的图片右键菜单
+        if not hasattr(self.control_target, 'image_context_menu'):
+            self.control_target.image_context_menu = QMenu(self.control_target)
+        
+        # 3. 重写BeeGraphicsView的on_context_menu方法
+        def custom_on_context_menu(pos):
+            scene_pos = self.control_target.mapToScene(pos)
+            items = self.control_target.scene.items(scene_pos)
+            selected_items = [item for item in items if isinstance(item, BeePixmapItem)]
+            
+            if selected_items:
+                self.control_target.image_context_menu.clear()
+                self.init_image_tag_menu_ui(selected_items[0])  # 传入选中的图片
+                self.control_target.image_context_menu.addAction("删除").triggered.connect(
+                    lambda: self.control_target.scene.delete_selected())
+                self.control_target.image_context_menu.setMinimumWidth(200)
+                self.control_target.image_context_menu.exec(self.control_target.mapToGlobal(pos))
+            else:
+                global_menu = QMenu(self.control_target)
+                global_menu.addAction("清空画布").triggered.connect(
+                    lambda: self.control_target.scene.clear())
+                global_menu.exec(self.control_target.mapToGlobal(pos))
+        
+        self.control_target.on_context_menu = custom_on_context_menu
+
+    def on_add_tag(self):
+        """顶部菜单：新增标签"""
+        dialog = TagEditDialog(self.main_window)
+        if dialog.exec():
+            tag_name, tag_group = dialog.get_result()
+            if tag_name and tag_name.strip():
+                try:
+                    command = AddTagCommand(self.control_target.scene.tag_manager, tag_name.strip(), tag_group)
+                    self.control_target.undo_stack.push(command)
+                    self.control_target.scene.tag_manager.load_tags()
+                    logger.info(f"新增标签成功：{tag_name}")
+                    widgets.BeeNotification(self.main_window, f"新增标签「{tag_name}」成功")
+                except Exception as e:
+                    logger.error(f"新增标签失败：{e}")
+                    widgets.BeeNotification(self.main_window, f"新增标签失败：{str(e)}")
+
+    def init_image_tag_menu_ui(self, img_item):
+        """图像右键菜单：标签关联核心逻辑（本地缓存版）"""
+        tag_submenu = QMenu("标签", self.control_target.image_context_menu)
+        tag_submenu.setMinimumWidth(200)
+        self.control_target.image_context_menu.addMenu(tag_submenu)
+
+        # 1. 获取标签列表
+        try:
+            tags = self.control_target.scene.tag_manager.get_all_tags()
+            if not tags:
+                tag_submenu.addAction("暂无标签").setEnabled(False)
+                return
+        except Exception as e:
+            tag_submenu.addAction("加载标签失败").setEnabled(False)
+            logger.error(f"加载标签失败：{e}")
+            return
+
+        # 2. 生成图像唯一标识（兜底）
+        img_id = str(id(img_item))  # 使用Python内置ID，确保唯一
+
+        # 3. 为每个标签绑定关联/取消逻辑
+        for tag in tags:
+            # 检查本地缓存中的关联状态
+            is_related = img_id in self.tag_cache and tag["tag_id"] in self.tag_cache[img_id]
+            action_text = f"{'✅ ' if is_related else '□ '}{tag['tag_name']}"
+            action = tag_submenu.addAction(action_text)
+
+            # 绑定点击事件：切换关联状态
+            def toggle_tag_relation(tag_id=tag["tag_id"], tag_name=tag["tag_name"], act=action):
+                # 初始化图像缓存
+                if img_id not in self.tag_cache:
+                    self.tag_cache[img_id] = {}
+
+                if tag_id in self.tag_cache[img_id]:
+                    # 取消关联
+                    del self.tag_cache[img_id][tag_id]
+                    act.setText(f"□ {tag_name}")
+                    widgets.BeeNotification(self.main_window, f"✅ 取消关联「{tag_name}」")
+                    logger.info(f"图像{img_id}取消标签{tag_id}关联")
+                else:
+                    # 关联标签
+                    self.tag_cache[img_id][tag_id] = tag_name
+                    act.setText(f"✅ {tag_name}")
+                    widgets.BeeNotification(self.main_window, f"✅ 成功关联「{tag_name}」")
+                    logger.info(f"图像{img_id}关联标签{tag_id}成功")
+
+            action.triggered.connect(toggle_tag_relation)
+
+    def on_export_by_tag(self):
+        """按标签导出图像"""
+        try:
+            tag_manager = self.control_target.scene.tag_manager
+            tags = tag_manager.get_all_tags()
+            if not tags:
+                widgets.BeeNotification(self.main_window, "暂无标签可导出！")
+                return
+            
+            dialog = TagSelectDialog(self.main_window, tags)
+            if not dialog.exec():
+                return
+            
+            selected_tag_id = dialog.get_selected_tag_id()
+            if not selected_tag_id:
+                return
+            
+            export_path = QFileDialog.getExistingDirectory(self.main_window, "选择导出路径")
+            if not export_path:
+                return
+            
+            # 执行导出（兼容本地缓存）
+            success = tag_manager.export_tagged_images(
+                tag_id=selected_tag_id,
+                export_path=export_path,
+                export_params={"format": "PNG", "quality": 90}
+            )
+            if success:
+                widgets.BeeNotification(self.main_window, "✅ 按标签导出成功！")
+            else:
+                widgets.BeeNotification(self.main_window, "❌ 导出失败：无匹配图像或路径无权限")
+        except Exception as e:
+            logger.error(f"导出标签失败：{e}", exc_info=True)
+            widgets.BeeNotification(self.main_window, f"❌ 导出失败：{str(e)}")
