@@ -28,9 +28,6 @@ from beeref.assets import BeeAssets
 from beeref.config import CommandlineArgs, BeeSettings, logfile_name
 from beeref.utils import create_palette_from_dict
 from beeref.view import BeeGraphicsView
-#===================================
-from PyQt6.QtWidgets import QSplitter
-from beeref.widgets.controls.tag_panel import TagPanel
 
 logger = logging.getLogger(__name__)
 
@@ -63,47 +60,16 @@ class BeeRefMainWindow(QtWidgets.QMainWindow):
         else:
             if not self.restoreGeometry(geom):
                 self.resize(default_window_size)
-        
-        #====================新增（修复核心：删除重复的setCentralWidget）==============================
-        # 初始化标签面板
-        self.tag_panel = TagPanel()
-        # 绑定标签面板信号
-        self.tag_panel.add_tag_requested.connect(self.on_tag_panel_add_tag)
-        self.tag_panel.tag_filter_changed.connect(self.view.scene.tag_manager.apply_tag_filter)
-        # 绑定标签管理器的标签更新信号（刷新面板标签列表）
-        self.view.scene.tag_manager.tags_updated.connect(self.tag_panel.update_tags)
-
-        # 创建分割布局，整合标签面板和画布视图
-        self.splitter = QSplitter(QtCore.Qt.Orientation.Horizontal)  # 水平分割
-        self.splitter.addWidget(self.tag_panel)
-        self.splitter.addWidget(self.view)
-        self.splitter.setSizes([200, 800])  # 标签面板宽度200px，画布占剩余空间
-        self.setCentralWidget(self.splitter)  # 仅设置一次中央控件（分割器）
-        #=======================================================
-        
+        self.setCentralWidget(self.view)
         self.show()
 
     def closeEvent(self, event):
         geom = self.saveGeometry()
         self.view.settings.setValue('MainWindow/geometry', geom)
         event.accept()
-    
-    #============新增==================
-    def on_tag_panel_add_tag(self, tag_name: str):
-        """标签面板点击“添加标签”触发"""
-        from beeref.widgets.tag_dialogs import TagEditDialog
-        from beeref.commands import AddTagCommand
-        dialog = TagEditDialog(self, tag_name)
-        if dialog.exec():
-            tag_name, tag_group = dialog.get_result()
-            if tag_name:
-                command = AddTagCommand(self.view.scene.tag_manager, tag_name, tag_group)
-                self.view.undo_stack.push(command)
-    #===========================================
-    
+
     def __del__(self):
-        if hasattr(self, 'view'):  # 增加属性存在检查
-            del self.view
+        del self.view
 
 
 def safe_timer(timeout, func, *args, **kwargs):
@@ -164,4 +130,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()  
+    main()  # pragma: no cover
