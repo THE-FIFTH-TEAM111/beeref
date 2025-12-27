@@ -12,13 +12,14 @@ CREATE TABLE IF NOT EXISTS tags (
 """
 
 # 图像-标签关联表：多对多关系（优化唯一性约束+外键关联）
+# 移除对 items 表的外键约束，改为在应用层面确保数据完整性
 IMAGE_TAG_RELATION_SCHEMA = """
 CREATE TABLE IF NOT EXISTS image_tag_relations (
     relation_id INTEGER PRIMARY KEY AUTOINCREMENT,
     image_id TEXT NOT NULL,  -- 关联图像的save_id（与现有items表的id一致）
     tag_id INTEGER NOT NULL,
     FOREIGN KEY (tag_id) REFERENCES tags(tag_id) ON DELETE CASCADE,
-    FOREIGN KEY (image_id) REFERENCES items(id) ON DELETE CASCADE,  -- 关联现有图像表
+    -- 移除对 items 表的外键约束，避免创建表时的依赖问题
     UNIQUE(image_id, tag_id)  -- 强制避免重复关联（核心约束）
 )
 """

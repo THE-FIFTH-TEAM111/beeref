@@ -79,28 +79,28 @@ class TagRepository:
     # 图像-标签关联
     def add_image_tag_relation(self, image_id: str, tag_id: int) -> bool:
         """为图像关联标签（防重复插入）"""
-        # 参数校验
-        if not image_id or not isinstance(tag_id, int):
+    # 参数校验：确保tag_id是正整数
+        if not image_id or not isinstance(tag_id, int) or tag_id <= 0:
             logger.error(f"关联参数无效：image_id={image_id}, tag_id={tag_id}")
             return False
-        
+    
         try:
-            # 先检查是否已关联，避免重复插入
+        # 先检查是否已关联，避免重复插入
             self.cur.execute("""
                 SELECT 1 FROM image_tag_relations 
                 WHERE image_id=? AND tag_id=?
             """, (image_id, tag_id))
-            
+        
             if self.cur.fetchone():
                 logger.debug(f"图片{image_id}已关联标签{tag_id}，跳过插入")
                 return True  # 已关联视为“成功”
-            
-            # 插入关联关系
+        
+        # 插入关联关系
             self.cur.execute("""
                 INSERT INTO image_tag_relations (image_id, tag_id)
                 VALUES (?, ?)
             """, (image_id, tag_id))
-            
+        
             self.conn.commit()
             logger.info(f"图片{image_id}关联标签{tag_id}成功")
             return True

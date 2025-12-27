@@ -76,18 +76,21 @@ class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自
         self.multi_select_item = MultiSelectItem() # 重新创建多选项实例，重置多选项状态
         self._clear_ongoing = False # 清除操作完成，重置清除进行中标志
 
-    def addItem(self, item): # 添加项目到场景
-        logger.debug(f'Adding item {item}') # 记录添加项目的调试日志
-        super().addItem(item) # 调用父类的添加项目方法，将项目添加到场景中
-
-    def removeItem(self, item): # 从场景中移除项目
-        logger.debug(f'Removing item {item}') # 记录移除项目的调试日志
-        super().removeItem(item) # 调用父类的移除项目方法，将项目从场景中移除
-        #======================= 新增：记录用户图像项
-        if hasattr(item, 'save_id') and getattr(item, 'is_image', False):
+    def addItem(self, item):
+        super().addItem(item)
+        # 若为用户添加的图片项，同步到TagManager
+        if isinstance(item, BeePixmapItem):
             self.all_image_items.append(item)
-            self.tag_manager.all_images = self.all_image_items  # 同步到标签管理器
-        #==========================================
+            self.tag_manager.all_images.append(item)
+
+    def removeItem(self, item):
+        super().removeItem(item)
+        if isinstance(item, BeePixmapItem):
+            if item in self.all_image_items:
+                self.all_image_items.remove(item)
+            if item in self.tag_manager.all_images:
+                self.tag_manager.all_images.remove(item)
+    
     def cancel_active_modes(self): # 取消所有活动模式
         """Cancels ongoing crop modes, rubberband modes etc, if there are
         any.
@@ -588,13 +591,4 @@ class BeeGraphicsScene(QtWidgets.QGraphicsScene):  # 定义场景类，继承自
         for img_item in self.all_image_items:
             # 图像的save_id作为唯一标识，与筛选的image_ids匹配
             img_item.setVisible(str(img_item.save_id) in filtered_image_ids)
-    def addItem(self, item):
-        super().addItem(item)
-    # 若为用户添加的图片项，同步到TagManager
-        if isinstance(item, BeePixmapItem):
-            self.tag_manager.all_images.append(item)
-
-    def removeItem(self, item):
-        super().removeItem(item)
-        if isinstance(item, BeePixmapItem) and item in self.tag_manager.all_images:
-            self.tag_manager.all_images.remove(item)
+    
