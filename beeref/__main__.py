@@ -145,7 +145,7 @@ def main():
     args = CommandlineArgs(with_check=True)  # Force checking
     assert not args.debug_raise_error, args.debug_raise_error
 
-    os.environ["QT_DEBUG_PLUGINS"] = "1"
+    # os.environ["QT_DEBUG_PLUGINS"] = "1"
     app = BeeRefApplication(sys.argv)
     palette = create_palette_from_dict(constants.COLORS)
     app.setPalette(palette)

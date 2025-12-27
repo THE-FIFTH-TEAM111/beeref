@@ -50,6 +50,12 @@ menu_structure = [
             MENU_SEPARATOR,
             'raise_to_top',
             'lower_to_bottom',
+            MENU_SEPARATOR,
+            'toggle_favorite',  
+            {
+                'menu': '&Favourites',
+                'items': '_build_favorites_menu',
+            },
         ],
     },
     {
@@ -113,6 +119,8 @@ menu_structure = [
             MENU_SEPARATOR,
             'show_color_gamut',
             'sample_color',
+            MENU_SEPARATOR,
+            'add_watermark',  # 新增：批量添加水印菜单项
         ],
     },
     {
