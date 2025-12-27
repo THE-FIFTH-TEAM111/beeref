@@ -29,7 +29,8 @@ from beeref import commands # 导入beeref模块中的commands类，用于处理
 from beeref.config import BeeSettings # 导入beeref模块中的BeeSettings类，用于处理应用程序的配置
 from beeref.constants import COLORS # 导入beeref模块中的COLORS常量，用于定义颜色
 from beeref.selection import SelectableMixin # 导入beeref模块中的SelectableMixin类，用于处理可选择的项
-
+#=============================
+import uuid 
 
 logger = logging.getLogger(__name__) # 创建一个日志记录器，用于记录当前模块的日志信息
 
@@ -113,11 +114,12 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
     CROP_HANDLE_SIZE = 15 # 定义项的裁剪句柄大小为15
 
     def __init__(self, image, filename=None, **kwargs): # 定义类的初始化方法，用于创建图像项
-        super().__init__(QtGui.QPixmap.fromImage(image)) # 调用父类的初始化方法，传入图像项的QPixmap对象
-        self.save_id = None # 初始化项的save_id属性为None
-        self.filename = filename # 初始化项的filename属性为传入的filename值
-        self.reset_crop() # 调用项的reset_crop方法，重置项的裁剪区域
-        logger.debug(f'Initialized {self}') # 记录项的初始化信息
+        super().__init__(QtGui.QPixmap.fromImage(image))
+        # 强制生成唯一save_id（核心：无此ID则无法关联标签）
+        self.save_id = str(uuid.uuid4())  # 生成32位唯一字符串
+        self.filename = filename  # 保留原文件名属性
+        self.reset_crop()  # 重置裁剪区域
+        logger.debug(f'Initialized {self} (save_id: {self.save_id})')  # 打印save_id便于调试
         self.is_image = True # 初始化项的is_image属性为True
         self.crop_mode = False # 初始化项的crop_mode属性为False
         self.init_selectable() # 调用项的init_selectable方法，初始化项的选择状态
