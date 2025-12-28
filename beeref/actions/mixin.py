@@ -14,6 +14,7 @@
 # along with BeeRef.  If not, see <https://www.gnu.org/licenses/>.
 
 # 导入必要的库
+from beeref import commands
 from collections import defaultdict  # 用于创建默认值为列表的字典
 from functools import partial       # 用于创建偏函数，固定部分参数
 import os.path                      # 用于处理文件路径
@@ -62,6 +63,7 @@ class ActionsMixin:
     def update_menu_and_actions(self):
         """更新菜单和动作状态，目前主要用于更新最近文件列表"""
         self._build_recent_files()
+        self._build_favorites_menu()
 
     def create_menubar(self):
         """创建菜单栏并添加所有顶级菜单"""
@@ -241,3 +243,92 @@ class ActionsMixin:
         for key in list(actions.keys()):
             if key.startswith('recent_files_'):
                 actions[key].qaction = None
+    def _build_favorites_menu(self, menu=None):
+        """
+        构建收藏菜单
+        
+        参数:
+            menu: 收藏子菜单对象（可选）
+        """
+        # 如果提供了菜单，则保存为收藏子菜单
+        if menu:
+            self._favorites_submenu = menu
+        # 清除现有收藏菜单内容
+        self._clear_favorites_menu()
+
+        # 获取所有收藏的项目
+        favorites = [item for item in self.scene.items() 
+                    if hasattr(item, 'favorite') and item.favorite]
+        
+        # 如果没有收藏的项目，添加一个禁用的菜单项
+        if not favorites:
+            no_favorites_action = QtGui.QAction('No favorites yet', self)
+            no_favorites_action.setEnabled(False)
+            self._favorites_submenu.addAction(no_favorites_action)
+            return
+        
+        # 创建最多20个收藏项目的动作
+        for i, item in enumerate(favorites[:20]):
+            action_id = f'favorite_{i}'
+            
+            # 创建动作定义
+            action = Action(id=action_id,
+                            menu_id='_build_favorites_menu',
+                            text=f'Item {i + 1}' if not hasattr(item, 'filename') else os.path.basename(item.filename))
+            # 将动作添加到actions字典
+            actions[action_id] = action
+            
+            # 创建QAction对象
+            qaction = QtGui.QAction(action.text, self)
+            # 连接触发信号到跳转到收藏项的方法（绑定当前项）
+            qaction.triggered.connect(
+                partial(self.on_action_jump_to_favorite, item))
+            # 将动作添加到窗口
+            self.addAction(qaction)
+            # 保存QAction到动作定义
+            action.qaction = qaction
+            # 将动作添加到收藏菜单
+            self._favorites_submenu.addAction(qaction)
+
+    def _clear_favorites_menu(self):
+        """清除收藏菜单中的所有动作"""
+        # 移除子菜单中所有动作的关联
+        if hasattr(self, '_favorites_submenu'):
+            for action in self._favorites_submenu.actions():
+                self.removeAction(action)
+            # 清空子菜单
+            self._favorites_submenu.clear()
+        # 从actions字典中移除收藏相关的动作
+        for key in list(actions.keys()):
+            if key.startswith('favorite_'):
+                actions[key].qaction = None
+    def on_action_toggle_favorite(self):
+        """切换选中项的收藏状态。"""
+        items = self.scene.selectedItems(user_only=True)
+        if items:
+            self.undo_stack.push(commands.ToggleFavorite(items, self.scene))
+            # 更新收藏菜单
+            self.update_menu_and_actions()
+
+    def on_action_jump_to_favorite(self, item):
+        """跳转到并选择指定的收藏项，确保完整显示。"""
+        # 检查项目是否仍然在场景中
+        if item.scene() != self.scene:
+            # 如果项目不在场景中，更新收藏菜单并返回
+            self.update_menu_and_actions()
+            return
+            
+        # 取消当前选择
+        self.scene.deselect_all_items()
+        # 选择收藏项
+        item.setSelected(True)
+        # 将项目移到最前面
+        item.bring_to_front()
+        # 重置视图变换
+        self.resetTransform()
+        # 确保项目完整显示在视图中
+        self.fitInView(item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        # 稍微缩小一点，留一些边距
+        self.scale(0.9, 0.9)
+        # 更新视图
+        self.update()

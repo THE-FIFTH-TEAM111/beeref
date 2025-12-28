@@ -46,7 +46,7 @@ def exif_rotated_image(path=None):
     with open(path, 'rb') as f:
         try:
             exifimg = exif.Image(f)                                     # 从文件对象创建EXIF图像对象
-        except (plum.exceptions.UnpackError, NotImplementedError):      # 处理EXIF解析错误  
+        except (plum.exceptions.UnpackError, NotImplementedError, ValueError):      # 处理EXIF解析错误  
             logger.exception(f'Exif parser failed on image: {path}')    # 记录EXIF解析错误日志
             return img                                                  # 如果EXIF解析错误，直接返回原始图像
 

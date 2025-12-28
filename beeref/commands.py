@@ -52,20 +52,26 @@ class InsertItems(QtGui.QUndoCommand):
 
 
 class DeleteItems(QtGui.QUndoCommand):
-    def __init__(self, scene, items):
+    def __init__(self, scene, items, view=None):
         super().__init__('Delete items')
         self.scene = scene
         self.items = items
+        self.view = view
 
     def redo(self):
         for item in self.items:
             self.scene.removeItem(item)
+        if self.view:
+            self.view.update_menu_and_actions()
 
     def undo(self):
         self.scene.deselect_all_items()
         for item in self.items:
             item.setSelected(True)
             self.scene.addItem(item)
+        # 如果提供了视图，更新收藏菜单
+        if self.view:
+            self.view.update_menu_and_actions()
 
 
 class MoveItemsBy(QtGui.QUndoCommand):
@@ -365,3 +371,43 @@ class ToggleGrayscale(QtGui.QUndoCommand):
     def undo(self):
         for item, grayscale in zip(self.items, self.old_grayscales):
             item.grayscale = grayscale
+
+# ------------------------------
+# 新增：更新图片Pixmap的撤销命令（用于水印操作）
+# ------------------------------
+class UpdatePixmap(QtGui.QUndoCommand):
+    def __init__(self, item, new_pixmap):
+        super().__init__("修改图片")
+        self.item = item
+        self.old_pixmap = item.pixmap()
+        self.new_pixmap = new_pixmap
+
+    def redo(self):
+        self.item.setPixmap(self.new_pixmap)
+
+    def undo(self):
+        self.item.setPixmap(self.old_pixmap)
+# 新增：切换收藏状态的撤销命令
+class ToggleFavorite(QtGui.QUndoCommand):
+    """Toggle favorite status of selected items."""
+    
+    def __init__(self, items, scene, is_favorite=None):
+        action_text = 'Toggle Favorite' if is_favorite is None else \
+                     'Mark as Favorite' if is_favorite else 'Unmark as Favorite'
+        super().__init__(action_text)
+        self.items = items
+        self.scene = scene
+        self.old_states = {item: item.favorite for item in items}
+        self.new_state = is_favorite
+        
+    def redo(self):
+        for item in self.items:
+            if hasattr(item, 'favorite'):
+                item.favorite = not item.favorite if self.new_state is None else self.new_state
+        self.scene.update()
+        
+    def undo(self):
+        for item, old_state in self.old_states.items():
+            if hasattr(item, 'favorite'):
+                item.favorite = old_state
+        self.scene.update()

@@ -123,7 +123,7 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
         self.init_selectable() # 调用项的init_selectable方法，初始化项的选择状态
         self.settings = BeeSettings() # 初始化项的settings属性为BeeSettings()对象
         self.grayscale = False # 初始化项的grayscale属性为False
-
+        self.favorite = False # 初始化项的收藏属性为False
     @classmethod
     def create_from_data(self, **kwargs): # 定义一个类方法，用于从数据创建图像项
         item = kwargs.pop('item') # 从kwargs中弹出项对象，赋值给item变量
@@ -133,6 +133,7 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
             item.crop = QtCore.QRectF(*data['crop']) # 将项的crop属性设置为数据字典中'crop'键对应的值，使用QRectF对象表示裁剪区域
         item.setOpacity(data.get('opacity', 1)) # 将项的不透明度属性设置为数据字典中'opacity'键对应的值，默认值为1
         item.grayscale = data.get('grayscale', False) # 将项的grayscale属性设置为数据字典中'grayscale'键对应的值，默认值为False
+        item.favorite = data.get('favorite', False) # 将项的收藏属性设置为数据字典中'favorite'键对应的值，默认值为False
         return item # 返回创建的项对象
 
     def __str__(self): # 定义项的字符串表示方法
@@ -219,6 +220,7 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
         return {'filename': self.filename,
                 'opacity': self.opacity(),
                 'grayscale': self.grayscale,
+                'favorite': self.favorite,
                 'crop': [self.crop.topLeft().x(),
                          self.crop.topLeft().y(),
                          self.crop.width(),
@@ -474,6 +476,39 @@ class BeePixmapItem(BeeItemMixin, QtWidgets.QGraphicsPixmapItem): # 定义一个
             pm = self._grayscale_pixmap if self.grayscale else self.pixmap() # 根据灰度模式选择像素图
             painter.drawPixmap(self.crop, pm, self.crop) # 绘制裁剪区域
             self.paint_selectable(painter, option, widget) # 绘制选择效果
+            super().paint(painter, option, widget)
+            # 如果是收藏项，绘制收藏标记
+            if self.favorite:
+                # 绘制一个星形收藏标记
+                painter.setRenderHint(painter.RenderHint.Antialiasing) # 设置抗锯齿
+                star_path = QtGui.QPainterPath()
+                star_points = [
+                    QtCore.QPointF(30, 10),
+                    QtCore.QPointF(37, 28),
+                    QtCore.QPointF(55, 28),
+                    QtCore.QPointF(42, 38),
+                    QtCore.QPointF(47, 56),
+                    QtCore.QPointF(30, 46),
+                    QtCore.QPointF(13, 56),
+                    QtCore.QPointF(18, 38),
+                    QtCore.QPointF(5, 28),
+                    QtCore.QPointF(23, 28)
+                ]
+                star_path.moveTo(star_points[0])
+                for i in range(1, len(star_points)):
+                    star_path.lineTo(star_points[i])
+                star_path.closeSubpath()
+                
+                # 设置标记位置（右上角）
+                mark_size = 40
+                rect = self.boundingRect()
+                painter.translate(rect.width() - mark_size - 5, 5)
+                
+                # 绘制黄色填充星形
+                painter.fillPath(star_path, QtGui.QColor(255, 223, 0))
+                painter.setPen(QtGui.QPen(QtGui.QColor(255, 193, 0), 2))
+                painter.drawPath(star_path)
+
 
     def enter_crop_mode(self): # 进入裁剪模式
         logger.debug(f'Entering crop mode on {self}') # 记录进入裁剪模式的日志
