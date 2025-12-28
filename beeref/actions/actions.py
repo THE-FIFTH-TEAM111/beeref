@@ -1,3 +1,12 @@
+# This file is part of BeeRef.
+# 说明：此文件是 BeeRef 项目的一部分，用于定义应用内所有交互动作（如菜单操作、快捷键响应等）
+#
+# BeeRef is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 说明：BeeRef 是自由软件，可根据 GNU 通用公共许可证（第三版或更高版本）重新分发和修改，无商业限制
+#
 # BeeRef is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -12,7 +21,6 @@ from functools import cached_property  # 导入缓存属性装饰器，用于缓
 import logging  # 导入日志模块，用于记录动作相关的调试、错误信息
 
 from PyQt6 import QtGui  # 从 PyQt6 导入 QtGui 模块，用于处理图形界面相关的键盘快捷键（QKeySequence）
-from PyQt6.QtWidgets import QMenu  # 从 PyQt6 导入 QMenu，用于创建菜单
 
 # 从beeref.actions.menu_structure模块导入菜单结构定义menu_structure
 # 作用：用于定位每个动作在应用菜单中的层级路径（如“文件→打开”）
@@ -133,7 +141,8 @@ class Action:
         except IndexError:
             # 索引超出范围，返回None
             return None
-        
+
+
 # 创建动作列表实例：将所有定义的Action实例传入ActionList，统一管理
 actions = ActionList([
     # 1. 文件操作类动作
@@ -500,19 +509,6 @@ actions = ActionList([
         id='open_settings_dir',  # 动作唯一标识：打开设置文件夹
         text='&Open Settings Folder',  # 菜单显示文本：Alt+O为菜单快捷键
         callback='on_action_open_settings_dir',  # 触发方法：on_action_open_settings_dir
-    ),
-    # 新增：标签操作类动作
-    Action(
-        id='add_tag',  # 动作唯一标识：新增标签
-        text='&Add Tag...',  # 菜单显示文本：Alt+A为菜单快捷键
-        shortcuts=['Ctrl+Shift+T'],  # 默认快捷键：Ctrl+Shift+T
-        callback='on_action_add_tag',  # 触发方法：on_action_add_tag
-    ),
-    Action(
-        id='export_by_tag',  # 动作唯一标识：按标签导出
-        text='Export by &Tag...',  # 菜单显示文本：Alt+T为菜单快捷键
-        callback='on_action_export_by_tag',  # 触发方法：on_action_export_by_tag
-        group='active_when_items_in_scene',  # 可用性组：仅当场景中有项目时激活
     ),
 
     # 新增：批量添加水印动作
