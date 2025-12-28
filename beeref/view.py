@@ -653,12 +653,16 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         if not all_items:
             return
 
+        # 获取视图变换
+        transform = self.transform()
+        scale_factor = transform.m11()
+
         # 计算网格布局
         num_items = len(all_items)
         cols = int(math.ceil(math.sqrt(num_items)))
         rows = int(math.ceil(num_items / cols))
 
-        # 计算单元格大小
+        # 计算单元格大小（考虑缩放因子）
         width = self.viewport().width()
         height = self.viewport().height()
         cell_width = width / cols
@@ -666,9 +670,6 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
         painter = QtGui.QPainter(self.viewport())
         painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
-
-        # 获取当前视图的缩放比例
-        scale_factor = self.get_scale()
 
         # 绘制网格背景
         painter.fillRect(0, 0, width, height, QtGui.QColor(50, 50, 50))
@@ -681,26 +682,26 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             x = col * cell_width
             y = row * cell_height
     
-            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
+            # 缩放图像以适应网格单元格
             pixmap = item.pixmap()
-            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
             scaled_pixmap = pixmap.scaled(
-                int(cell_width / scale_factor), 
-                int(cell_height / scale_factor),
+                int(cell_width), 
+                int(cell_height),
                 QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                 QtCore.Qt.TransformationMode.SmoothTransformation
             )
     
             # 居中绘制
-            dx = (cell_width - scaled_pixmap.width() * scale_factor) // 2
-            dy = (cell_height - scaled_pixmap.height() * scale_factor) // 2
+            dx = (cell_width - scaled_pixmap.width()) // 2
+            dy = (cell_height - scaled_pixmap.height()) // 2
         
             # 保存当前绘制状态
             painter.save()
-        
-            # 应用缩放变换
-            painter.translate(x + dx, y + dy)
+            
+            # 应用视图的缩放变换到当前单元格
+            painter.translate(x + dx + scaled_pixmap.width() // 2, y + dy + scaled_pixmap.height() // 2)
             painter.scale(scale_factor, scale_factor)
+            painter.translate(-scaled_pixmap.width() // 2, -scaled_pixmap.height() // 2)
         
             # 绘制缩放后的图像
             painter.drawPixmap(0, 0, scaled_pixmap)
@@ -708,11 +709,11 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             # 恢复绘制状态
             painter.restore()
         
-            # 绘制边框
+            # 绘制边框（不应用变换，保持固定大小）
             painter.setPen(QtGui.QPen(QtGui.QColor(255, 223, 0), 2))
             painter.drawRect(int(x), int(y), int(cell_width), int(cell_height))
         
-            # 绘制文件名
+            # 绘制文件名（不应用变换，保持固定大小）
             font = painter.font()
             font.setPointSize(10)
             painter.setFont(font)
@@ -1310,6 +1311,9 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         logger.trace('Done recalculating scene rectangle')
 
     def get_zoom_size(self, func):
+        if self.compare_mode:
+            # In compare mode, use the viewport size instead of the scene items' bounding rect
+            return func(self.viewport().width(), self.viewport().height())
         topleft = self.mapFromScene(self.scene.itemsBoundingRect().topLeft())
         bottomright = self.mapFromScene(self.scene.itemsBoundingRect().bottomRight())
         return func(bottomright.x() - topleft.x(), bottomright.y() - topleft.y())
