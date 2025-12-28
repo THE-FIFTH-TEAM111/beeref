@@ -19,7 +19,7 @@ import logging                              # 用于记录日志
 import pathlib                              # 用于处理文件路径
 from xml.etree import ElementTree as ET     # 用于创建XML文档
 
-from PyQt6 import QtCore, QtGui, QtPrintSupport             # 用于处理Qt的核心功能、图形用户界面和打印功能
+from PyQt6 import QtCore, QtGui             # 用于处理Qt的核心功能和图形用户界面
 
 from .errors import BeeFileIOError          # 自定义异常类，用于导出时的错误处理
 from beeref import constants, widgets       # 导入 BeeRef 常量和小部件
@@ -93,12 +93,6 @@ class ExporterBase:
 class SceneExporterBase(ExporterBase):
     """For exporting the scene to a single image."""        # 场景导出器基类，用于定义场景导出器的通用方法
 
-    # 默认参数配置
-    DEFAULT_PARAMETERS = {
-        'width': None,          # 导出宽度
-        'height': None,         # 导出高度
-    }
-
     # 场景导出器基类的初始化方法
     def __init__(self, scene):
         self.scene = scene                                  # 场景导出器基类的初始化方法，接收场景作为参数
@@ -116,23 +110,6 @@ class SceneExporterBase(ExporterBase):
             QtCore.QMargins(*([int(self.margin)] * 4)))              # 计算导出图像的大小，包含边距
         logger.debug(f'Default export margin: {self.margin}')        # 记录导出图像的边距
         logger.debug(f'Default export size with margins: {self.default_size}')# 记录导出图像的大小，包含边距
-        
-        # 初始化参数
-        self.parameters = self.DEFAULT_PARAMETERS.copy()
-        self.parameters['width'] = self.default_size.width()
-        self.parameters['height'] = self.default_size.height()
-        # 初始化size属性
-        self.size = self.default_size
-
-    # 获取参数配置
-    def get_parameters(self):
-        return self.parameters
-    
-    # 设置参数
-    def set_parameters(self, parameters):
-        self.parameters.update(parameters)
-        # 更新宽度和高度
-        self.size = QtCore.QSize(self.parameters['width'], self.parameters['height'])
 
 
 # 注册场景到像素图导出器
@@ -140,13 +117,6 @@ class SceneExporterBase(ExporterBase):
 class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类，用于定义场景导出器的通用方法
 
     TYPE = ExporterRegistry.DEFAULT_TYPE               # 设置为默认导出类型
-    
-    # 扩展默认参数配置
-    DEFAULT_PARAMETERS = SceneExporterBase.DEFAULT_PARAMETERS.copy()
-    DEFAULT_PARAMETERS.update({
-        'dpi': 300,             # 分辨率 (DPI)
-        'quality': 90,          # JPEG 压缩质量 (0-100)
-    })
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
     def get_user_input(self, parent):
@@ -155,14 +125,12 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
         # 创建导出对话框，让用户输入最终导出尺寸
         dialog = widgets.SceneToPixmapExporterDialog(       # 创建场景导出器对话框实例
             parent=parent,                                  # 场景导出器对话框的父窗口
-            default_size=self.default_size,
-            default_dpi=self.parameters['dpi'],
-            default_quality=self.parameters['quality'],
+            default_size=self.default_size,                 # 场景导出器对话框的默认导出大小
         )
         if dialog.exec():                                   # 若场景导出器对话框执行成功
-            params = dialog.value()
-            self.set_parameters(params)
-            logger.debug(f'Got export parameters: {params}')
+            size = dialog.value()                           # 获取场景导出器对话框中用户输入的导出大小
+            logger.debug(f'Got export size {size}')         # 记录用户输入的导出大小
+            self.size = size                                # 将用户输入的导出大小赋值给场景导出器基类的属性
             return True                                     # 返回True表示用户输入成功
         else:                                               # 若场景导出器对话框执行失败
             return False                                    # 返回False表示用户输入失败
@@ -204,7 +172,7 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
             return                                          # 若导出器实例存在且取消导出标志为True，则直接返回，不导出图像
 
         # 若导出图像保存失败
-        if not image.save(filename, quality=self.parameters['quality']):
+        if not image.save(filename, quality=90):
             self.handle_export_error(filename, 'Error writing file', worker) # 处理导出错误，参数为导出文件名、错误信息和导出器实例
             return                                                           # 返回，不继续导出
 
@@ -212,21 +180,14 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
         self.emit_progress(worker, 1)                 # 发送导出进度信号，参数为导出器实例和导出进度值1
         self.emit_finished(worker, filename, [])      # 发送导出完成信号，参数为导出器实例、导出文件名和空列表
 
-# 注册场景到SVG
+# 注册场景到SVG，
 @register_exporter
 class SceneToSVGExporter(SceneExporterBase):
 
     TYPE = 'svg'                        # 场景导出器基类的导出类型属性，值为'svg'，表示导出为SVG格式
-    
-    # 扩展默认参数配置
-    DEFAULT_PARAMETERS = SceneExporterBase.DEFAULT_PARAMETERS.copy()
-    DEFAULT_PARAMETERS.update({
-        'dpi': 96,             # SVG 通常使用 96 DPI
-    })
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
     def get_user_input(self, parent):
-        # SVG 导出使用默认大小，不需要用户输入
         self.size = self.default_size   # 将场景导出器基类的默认导出大小赋值给场景导出器基类的属性
         return True                     # 返回True表示用户输入成功
 
@@ -350,99 +311,6 @@ class SceneToSVGExporter(SceneExporterBase):
 
         logger.debug('Export finished')                     # 调试日志，输出导出任务完成
         self.emit_finished(worker, filename, [])            # 发送导出任务完成信号，参数为导出任务的工作线程、文件名和空列表
-
-
-# 注册场景到PDF
-@register_exporter
-class SceneToPDFExporter(SceneExporterBase):
-
-    TYPE = 'pdf'                        # 场景导出器基类的导出类型属性，值为'pdf'，表示导出为PDF格式
-    
-    # 扩展默认参数配置
-    DEFAULT_PARAMETERS = SceneExporterBase.DEFAULT_PARAMETERS.copy()
-    DEFAULT_PARAMETERS.update({
-        'dpi': 300,             # 分辨率 (DPI)
-        'margin_percent': 3,    # 页边距百分比 (0-100)
-    })
-
-    # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
-    def get_user_input(self, parent):
-        """Ask user for final export size."""
-        # 创建导出对话框，让用户输入最终导出尺寸
-        dialog = widgets.SceneToPixmapExporterDialog(
-            parent=parent,
-            default_size=self.default_size,
-            default_dpi=self.parameters['dpi'],
-            default_margin=self.parameters['margin_percent'],
-        )
-        if dialog.exec():
-            params = dialog.value()
-            self.set_parameters(params)
-            logger.debug(f'Got export parameters: {params}')
-            return True
-        else:
-            return False
-
-    # 场景导出器基类的导出方法，用于将场景导出为PDF文件
-    def export(self, filename, worker=None):
-        logger.debug(f'Exporting scene to {filename}')
-        self.emit_begin_processing(worker, 1)
-
-        if worker and worker.canceled:
-            logger.debug('Export canceled')
-            self.emit_finished(worker, filename, [])
-            return
-
-        try:
-            # 创建PDF打印机对象
-            printer = QtPrintSupport.QPrinter(QtPrintSupport.QPrinter.PrinterMode.HighResolution)
-            printer.setOutputFormat(QtPrintSupport.QPrinter.OutputFormat.PdfFormat)
-            printer.setOutputFileName(filename)
-            
-            # 设置纸张大小和分辨率
-            # 在PyQt6中，setPaperSize已被setPageSize替代
-            # 尝试使用Millimeter单位而不是Point单位
-            # 先将像素转换为毫米 (1 inch = 25.4 mm, 1 inch = DPI pixels)
-            mm_width = (self.size.width() / self.parameters['dpi']) * 25.4
-            mm_height = (self.size.height() / self.parameters['dpi']) * 25.4
-            page_size = QtGui.QPageSize(QtCore.QSizeF(mm_width, mm_height), QtGui.QPageSize.Unit.Millimeter)
-            printer.setPageSize(page_size)
-            printer.setResolution(self.parameters['dpi'])  # 使用参数中的DPI
-            
-            # 按比例调整边距
-            margin = max(self.size.width(), self.size.height()) * self.parameters['margin_percent'] / 100
-            logger.debug(f'Final export margin: {margin}')
-            logger.debug(f'Final export size: {self.size}')
-            logger.debug(f'Final export target size: {self.size.width() - 2 * margin} x {self.size.height() - 2 * margin}')
-            logger.debug(f'PDF page size in mm: {mm_width} x {mm_height}')
-            
-            # 创建绘图器并渲染场景
-            painter = QtGui.QPainter()
-            if not painter.begin(printer):
-                self.handle_export_error(filename, 'Error creating PDF painter', worker)
-                return
-            
-            # 定义目标矩形
-            target_rect = QtCore.QRectF(
-                margin,
-                margin,
-                self.size.width() - 2 * margin,
-                self.size.height() - 2 * margin)
-            logger.trace(f'Final export target_rect: {target_rect}')
-            logger.trace(f'Scene bounding rect: {self.scene.itemsBoundingRect()}')
-            
-            self.scene.render(painter,
-                            source=self.scene.itemsBoundingRect(),
-                            target=target_rect)
-            
-            painter.end()
-            
-            logger.debug('Export finished')
-            self.emit_progress(worker, 1)
-            self.emit_finished(worker, filename, [])
-        except Exception as e:
-            self.handle_export_error(filename, str(e), worker)
-            return
 
 
 # 图像到目录导出器
