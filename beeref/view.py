@@ -476,34 +476,49 @@ class BeeGraphicsView(MainControlsMixin,
             self.undo_stack.setClean() # 设置撤销栈为干净状态   
 
     def do_save(self, filename, create_new): # 保存场景槽函数
-        if not fileio.is_bee_file(filename): # 如果不是 bee 文件
-            filename = f'{filename}.bee' # 添加 bee 文件扩展名  
-        self.worker = fileio.ThreadedIO( # 创建线程化 IO 工作器
-            fileio.save_bee, filename, self.scene, create_new=create_new) # 保存 bee 文件，将场景项保存到文件中
-        self.worker.finished.connect(self.on_saving_finished) # 连接完成信号到保存完成槽函数
-        self.progress = widgets.BeeProgressDialog( # 创建进度对话框
-            f'Saving {filename}', # 进度对话框标题
-            worker=self.worker, # 关联线程化 IO 工作器
-            parent=self) # 设置进度对话框父窗口为主窗口
-        self.worker.start() # 启动线程化 IO 工作器，开始保存文件    
+        name, ext = os.path.splitext(filename) # 分离文件名和扩展名
+        if ext.lower() == '.pdf': # 如果是PDF格式
+            # 使用PDF导出器
+            exporter_cls = exporter_registry[ext]
+            exporter = exporter_cls(self.scene)
+            if not exporter.get_user_input(self): # 如果导出器需要用户输入
+                return
+            self.worker = fileio.ThreadedIO(exporter.export, filename)
+            self.worker.finished.connect(self.on_export_finished)
+            self.progress = widgets.BeeProgressDialog(
+                f'Saving {filename}',
+                worker=self.worker,
+                parent=self)
+            self.worker.start()
+        else: # 否则保存为bee文件
+            if not fileio.is_bee_file(filename):
+                filename = f'{filename}.bee'
+            self.worker = fileio.ThreadedIO(
+                fileio.save_bee, filename, self.scene, create_new=create_new)
+            self.worker.finished.connect(self.on_saving_finished)
+            self.progress = widgets.BeeProgressDialog(
+                f'Saving {filename}',
+                worker=self.worker,
+                parent=self)
+            self.worker.start()
 
     def on_action_save_as(self): # 保存为槽函数
-        self.cancel_active_modes() # 取消活动模式
-        directory = os.path.dirname(self.filename) if self.filename else None # 如果有文件名，获取文件名所在目录，否则为 None
-        filename, f = QtWidgets.QFileDialog.getSaveFileName( # 获取保存文件对话框
-            parent=self, # 设置进度对话框父窗口为主窗口
-            caption='Save file', # 保存文件对话框标题
-            directory=directory, # 保存文件对话框默认目录为当前文件名所在目录
-            filter=f'{constants.APPNAME} File (*.bee)') # 保存文件对话框筛选器，仅显示 bee 文件
-        if filename: # 如果选择了文件   
-            self.do_save(filename, create_new=True) # 保存场景为新文件
+        self.cancel_active_modes()
+        directory = os.path.dirname(self.filename) if self.filename else None
+        filename, f = QtWidgets.QFileDialog.getSaveFileName(
+            parent=self,
+            caption='Save file',
+            directory=directory,
+            filter=f'{constants.APPNAME} File (*.bee);;PDF Document (*.pdf)') # 添加PDF格式选项
+        if filename:
+            self.do_save(filename, create_new=True)
 
     def on_action_save(self): # 保存槽函数
-        self.cancel_active_modes() # 取消活动模式
-        if not self.filename: # 如果没有文件名
-            self.on_action_save_as() # 调用保存为槽函数
+        self.cancel_active_modes()
+        if not self.filename:
+            self.on_action_save_as()
         else:
-            self.do_save(self.filename, create_new=False) # 保存场景到当前文件名，不创建新文件
+            self.do_save(self.filename, create_new=False)
 
     def on_action_export_scene(self): # 导出场景槽函数
         # 设置默认文件名和目录
@@ -521,10 +536,10 @@ class BeeGraphicsView(MainControlsMixin,
         else:
             default_path = default_filename
             
-        filename, formatstr = QtWidgets.QFileDialog.getSaveFileName( # 获取保存文件对话框
-            parent=self, # 设置进度对话框父窗口为主窗口
-            caption='Export Scene', # 导出场景对话框标题
-            directory=default_path, # 导出场景对话框默认目录和文件名
+        filename, formatstr = QtWidgets.QFileDialog.getSaveFileName(
+            parent=self,
+            caption='Export Scene',
+            directory=default_path,
             filter=';;'.join(('All Export Formats (*.png *.jpg *.jpeg *.svg *.pdf)',
                               'Image Files (*.png *.jpg *.jpeg *.svg)',
                               'PNG (*.png)',
@@ -532,272 +547,272 @@ class BeeGraphicsView(MainControlsMixin,
                               'SVG (*.svg)',
                               'PDF (*.pdf)')))
 
-        if not filename: # 如果没有文件名
-            return # 如果没有文件名，返回   
+        if not filename:
+            return
 
-        name, ext = os.path.splitext(filename) # 从文件名中分离出文件名和扩展名
-        if not ext: # 如果没有扩展名
-            ext = get_file_extension_from_format(formatstr) # 从格式字符串中获取文件扩展名
-            filename = f'{filename}.{ext}' # 添加文件扩展名
-        logger.debug(f'Got export filename {filename}') # 调试日志，提示导出文件名  
+        name, ext = os.path.splitext(filename)
+        if not ext:
+            ext = get_file_extension_from_format(formatstr)
+            filename = f'{filename}.{ext}'
+        logger.debug(f'Got export filename {filename}')
 
-        exporter_cls = exporter_registry[ext] # 从导出器注册表中获取导出器类
-        exporter = exporter_cls(self.scene) # 创建导出器实例，将场景项传递给导出器
-        if not exporter.get_user_input(self): # 如果导出器需要用户输入
-            return # 如果导出器需要用户输入，返回
+        exporter_cls = exporter_registry[ext]
+        exporter = exporter_cls(self.scene)
+        if not exporter.get_user_input(self):
+            return
 
-        self.worker = fileio.ThreadedIO(exporter.export, filename) # 创建线程化 IO 工作器，将导出函数和文件名传递给工作器   
-        self.worker.finished.connect(self.on_export_finished) # 连接完成信号到导出完成槽函数
-        self.progress = widgets.BeeProgressDialog( # 创建进度对话框
-            f'Exporting {filename}', # 进度对话框标题
-            worker=self.worker, # 关联线程化 IO 工作器
-            parent=self) # 设置进度对话框父窗口为主窗口
-        self.worker.start() # 启动线程化 IO 工作器，开始导出文件        
+        self.worker = fileio.ThreadedIO(exporter.export, filename)
+        self.worker.finished.connect(self.on_export_finished)
+        self.progress = widgets.BeeProgressDialog(
+            f'Exporting {filename}',
+            worker=self.worker,
+            parent=self)
+        self.worker.start()
 
-    def on_export_finished(self, filename, errors): # 导出完成槽函数
-        if errors: # 如果有错误
-            err_msg = '</br>'.join(str(errors)) # 将错误列表转换为字符串，每个错误之间用换行符分隔
-            QtWidgets.QMessageBox.warning( # 显示警告对话框
-                self, # 警告对话框父窗口为主窗口
-                'Problem writing file', # 警告对话框标题
-                f'<p>Problem writing file {filename}</p><p>{err_msg}</p>') # 警告对话框内容，提示导出文件时出现问题，包含文件名和错误信息   
+    def on_export_finished(self, filename, errors):
+        if errors:
+            err_msg = '</br>'.join(str(errors))
+            QtWidgets.QMessageBox.warning(
+                self,
+                'Problem writing file',
+                f'<p>Problem writing file {filename}</p><p>{err_msg}</p>')
 
-    def on_action_export_images(self): # 导出图像槽函数
-        directory = os.path.dirname(self.filename) if self.filename else None # 如果有文件名，获取文件名所在目录，否则为 None
-        directory = QtWidgets.QFileDialog.getExistingDirectory( # 获取导出图像对话框
-            parent=self, # 设置进度对话框父窗口为主窗口
-            caption='Export Images', # 导出图像对话框标题
-            directory=directory) # 获取导出图像对话框默认目录为当前文件名所在目录
+    def on_action_export_images(self):
+        directory = os.path.dirname(self.filename) if self.filename else None
+        directory = QtWidgets.QFileDialog.getExistingDirectory(
+            parent=self,
+            caption='Export Images',
+            directory=directory)
 
-        if not directory: # 如果没有目录
-            return # 如果没有目录，返回 
+        if not directory:
+            return
 
-        logger.debug(f'Got export directory {directory}') # 调试日志，提示导出目录
-        self.exporter = ImagesToDirectoryExporter(self.scene, directory) # 创建导出器实例，将场景项和目录传递给导出器
-        self.worker = fileio.ThreadedIO(self.exporter.export) # 创建线程化 IO 工作器，将导出函数传递给工作器
-        self.worker.user_input_required.connect( # 连接用户输入信号到导出图像文件存在槽函数
-            self.on_export_images_file_exists) # 连接用户输入信号到导出图像文件存在槽函数
-        self.worker.finished.connect(self.on_export_finished) # 连接完成信号到导出完成槽函数
-        self.progress = widgets.BeeProgressDialog( # 创建进度对话框
-            f'Exporting to {directory}', # 进度对话框标题
-            worker=self.worker, # 关联线程化 IO 工作器
-            parent=self) # 设置进度对话框父窗口为主窗口
-        self.worker.start() # 启动线程化 IO 工作器，开始导出文件        
+        logger.debug(f'Got export directory {directory}')
+        self.exporter = ImagesToDirectoryExporter(self.scene, directory)
+        self.worker = fileio.ThreadedIO(self.exporter.export)
+        self.worker.user_input_required.connect(
+            self.on_export_images_file_exists)
+        self.worker.finished.connect(self.on_export_finished)
+        self.progress = widgets.BeeProgressDialog(
+            f'Exporting to {directory}',
+            worker=self.worker,
+            parent=self)
+        self.worker.start()
 
-    def on_export_images_file_exists(self, filename): # 导出图像文件存在槽函数
-        dlg = widgets.ExportImagesFileExistsDialog(self, filename) # 创建导出图像文件存在对话框，将主窗口和文件名传递给对话框
-        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted: # 如果用户点击了接受按钮
-            self.exporter.handle_existing = dlg.get_answer() # 获取用户选择的处理方式，将其赋值给导出器的 handle_existing 属性
-            directory = self.exporter.dirname # 获取导出器的目录名，将其赋值给 directory 变量   
-            self.progress = widgets.BeeProgressDialog( # 创建进度对话框
-                f'Exporting to {directory}', # 进度对话框标题
-                worker=self.worker, # 关联线程化 IO 工作器
-                parent=self) # 设置进度对话框父窗口为主窗口
-            self.worker.start() # 启动线程化 IO 工作器，开始导出文件        
+    def on_export_images_file_exists(self, filename):
+        dlg = widgets.ExportImagesFileExistsDialog(self, filename)
+        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            self.exporter.handle_existing = dlg.get_answer()
+            directory = self.exporter.dirname
+            self.progress = widgets.BeeProgressDialog(
+                f'Exporting to {directory}',
+                worker=self.worker,
+                parent=self)
+            self.worker.start()
 
-    def on_action_quit(self): # 退出槽函数
-        confirm = self.get_confirmation_unsaved_changes( # 获取确认未保存更改对话框
-            'There are unsaved changes. Are you sure you want to quit?') # 获取确认未保存更改对话框，将提示信息传递给对话框
-        if confirm: # 如果用户点击了接受按钮
-            logger.info('User quit. Exiting...') # 调试日志，提示用户退出
-            self.app.quit() # 退出应用程序
+    def on_action_quit(self):
+        confirm = self.get_confirmation_unsaved_changes(
+            'There are unsaved changes. Are you sure you want to quit?')
+        if confirm:
+            logger.info('User quit. Exiting...')
+            self.app.quit()
 
-    def on_action_settings(self): # 设置槽函数
-        widgets.settings.SettingsDialog(self) # 创建设置对话框，将主窗口传递给对话框
+    def on_action_settings(self):
+        widgets.settings.SettingsDialog(self)
 
-    def on_action_keyboard_settings(self): # 键盘设置槽函数
-        widgets.controls.ControlsDialog(self) # 创建键盘设置对话框，将主窗口传递给对话框
+    def on_action_keyboard_settings(self):
+        widgets.controls.ControlsDialog(self)
 
-    def on_action_help(self): # 帮助槽函数
-        widgets.HelpDialog(self) # 创建帮助对话框，将主窗口传递给对话框
+    def on_action_help(self):
+        widgets.HelpDialog(self)
 
-    def on_action_about(self): # 关于槽函数
-        QtWidgets.QMessageBox.about( # 显示关于对话框
-            self, # 关于对话框父窗口为主窗口
-            f'About {constants.APPNAME}', # 关于对话框标题  
-            (f'<h2>{constants.APPNAME} {constants.VERSION}</h2>' # 关于对话框内容，包含应用程序名称、版本、完整名称、版权信息和网站链接
-             f'<p>{constants.APPNAME_FULL}</p>' # 关于对话框内容，包含应用程序完整名称
-             f'<p>{constants.COPYRIGHT}</p>' # 关于对话框内容，包含应用程序版权信息
-             f'<p><a href="{constants.WEBSITE}">' # 关于对话框内容，包含应用程序网站链接
-             f'Visit the {constants.APPNAME} website</a></p>')) # 关于对话框内容，包含应用程序网站链接
+    def on_action_about(self):
+        QtWidgets.QMessageBox.about(
+            self,
+            f'About {constants.APPNAME}',
+            (f'<h2>{constants.APPNAME} {constants.VERSION}</h2>'
+             f'<p>{constants.APPNAME_FULL}</p>'
+             f'<p>{constants.COPYRIGHT}</p>'
+             f'<p><a href="{constants.WEBSITE}">'
+             f'Visit the {constants.APPNAME} website</a></p>'))
 
-    def on_action_debuglog(self): # 调试日志槽函数
-        widgets.DebugLogDialog(self) # 创建设置对话框，将主窗口传递给对话框
+    def on_action_debuglog(self):
+        widgets.DebugLogDialog(self)
 
-    def on_insert_images_finished(self, new_scene, filename, errors): # 插入图像完成槽函数  
-        """Callback for when loading of images is finished. # 
+    def on_insert_images_finished(self, new_scene, filename, errors):
+        """Callback for when loading of images is finished.
 
         :param new_scene: True if the scene was empty before, else False
         :param filename: Not used, for compatibility only
         :param errors: List of filenames that couldn't be loaded
         """
  
-        logger.debug('Insert images finished. Errors: %s', errors) # 调试日志，提示插入图像完成，包含错误文件名列表 
-        if errors: # 如果有错误文件名
-            errornames = [ # 生成错误文件名列表，每个文件名前添加 <li> 标签
-                f'<li>{fn}</li>' for fn in errors] # 生成错误文件名列表，每个文件名前添加 <li> 标签
-            errornames = '<ul>%s</ul>' % '\n'.join(errornames) # 生成错误文件名列表，每个文件名前添加 <li> 标签，并用 <ul> 标签包裹起来
-            num = len(errors) # 计算错误文件名列表的长度，即错误文件名的数量
-            msg = f'{num} image(s) could not be opened.<br/>' # 提示信息，包含错误文件名数量    
-            QtWidgets.QMessageBox.warning( # 显示警告对话框
-                self, # 关于对话框父窗口为主窗口
-                'Problem loading images', # 关于对话框标题，提示加载图像时出现问题
-                msg + IMG_LOADING_ERROR_MSG + errornames) # 关于对话框内容，包含错误文件名列表，提示加载图像时出现问题
-        self.scene.add_queued_items() # 添加队列中的项目到场景中
-        self.scene.arrange_default() # 对场景中的项目进行默认布局
-        self.undo_stack.endMacro() # 结束宏操作，将所有操作合并为一个操作
-        if new_scene: # 如果场景为空
-            self.on_action_fit_scene() # 调用拟合场景槽函数，将场景中的项目调整到合适的大小和位置   
+        logger.debug('Insert images finished. Errors: %s', errors)
+        if errors:
+            errornames = [
+                f'<li>{fn}</li>' for fn in errors]
+            errornames = '<ul>%s</ul>' % '\n'.join(errornames)
+            num = len(errors)
+            msg = f'{num} image(s) could not be opened.<br/>'
+            QtWidgets.QMessageBox.warning(
+                self,
+                'Problem loading images',
+                msg + IMG_LOADING_ERROR_MSG + errornames)
+        self.scene.add_queued_items()
+        self.scene.arrange_default()
+        self.undo_stack.endMacro()
+        if new_scene:
+            self.on_action_fit_scene()
 
-    def do_insert_images(self, filenames, pos=None): # 插入图像槽函数
-        """Insert images into the scene. # 插入图像槽函数，将图像插入场景中
+    def do_insert_images(self, filenames, pos=None):
+        """Insert images into the scene.
 
         :param filenames: List of filenames to insert
         :param pos: Position to insert the images at, or None for center
         """
-        if not pos: # 如果未指定插入位置
-            pos = self.get_view_center() # 获取视图中心位置
-        self.scene.deselect_all_items() # 取消选择场景中的所有项目
-        self.undo_stack.beginMacro('Insert Images') # 开始宏操作，将所有操作合并为一个操作
-        self.worker = fileio.ThreadedIO( # 创建线程化 IO 工作器，用于加载图像
-            fileio.load_images, # 加载图像函数
-            filenames, # 图像文件名列表
-            self.mapToScene(pos), # 将插入位置映射到场景坐标
-            self.scene) # 场景对象  
-        self.worker.progress.connect(self.on_items_loaded) # 连接线程化 IO 工作器的 progress 信号到 on_items_loaded 槽函数，用于更新进度条
-        self.worker.finished.connect( # 连接线程化 IO 工作器的 finished 信号到 on_insert_images_finished 槽函数
-            partial(self.on_insert_images_finished, # 插入图像完成槽函数，将图像插入场景中
-                    not self.scene.items())) # 插入图像完成槽函数，将图像插入场景中，参数为场景是否为空
-        self.progress = widgets.BeeProgressDialog( # 创建进度对话框，用于显示加载图像进度
-            'Loading images', # 进度对话框标题，提示加载图像进度
-            worker=self.worker, # 线程化 IO 工作器，用于加载图像
-            parent=self) # 进度对话框父窗口为主窗口 
-        self.worker.start() # 启动线程化 IO 工作器，开始加载图像
+        if not pos:
+            pos = self.get_view_center()
+        self.scene.deselect_all_items()
+        self.undo_stack.beginMacro('Insert Images')
+        self.worker = fileio.ThreadedIO(
+            fileio.load_images,
+            filenames,
+            self.mapToScene(pos),
+            self.scene)
+        self.worker.progress.connect(self.on_items_loaded)
+        self.worker.finished.connect(
+            partial(self.on_insert_images_finished,
+                    not self.scene.items()))
+        self.progress = widgets.BeeProgressDialog(
+            'Loading images',
+            worker=self.worker,
+            parent=self)
+        self.worker.start()
 
-    def on_action_insert_images(self): # 插入图像槽函数，将图像插入场景中
-        self.cancel_active_modes() # 取消激活模式槽函数，将所有激活模式取消激活
-        formats = self.get_supported_image_formats(QtGui.QImageReader) # 获取支持的图像格式列表，用于文件对话框筛选
-        logger.debug(f'Supported image types for reading: {formats}') # 调试日志，提示支持的图像格式列表
-        filenames, f = QtWidgets.QFileDialog.getOpenFileNames( # 获取打开的图像文件名列表，用于插入场景中
-            parent=self, # 插入图像槽函数，将图像插入场景中，参数为主窗口
-            caption='Select one or more images to open',  # 插入图像槽函数，将图像插入场景中，参数为打开图像文件对话框标题
-            filter=f'Images ({formats})') # 插入图像槽函数，将图像插入场景中，参数为打开图像文件对话框筛选器，包含支持的图像格式列表 
-        self.do_insert_images(filenames) # 插入图像槽函数，将图像插入场景中，参数为图像文件名列表
+    def on_action_insert_images(self):
+        self.cancel_active_modes()
+        formats = self.get_supported_image_formats(QtGui.QImageReader)
+        logger.debug(f'Supported image types for reading: {formats}')
+        filenames, f = QtWidgets.QFileDialog.getOpenFileNames(
+            parent=self,
+            caption='Select one or more images to open',  
+            filter=f'Images ({formats})')
+        self.do_insert_images(filenames)
 
-    def on_action_insert_text(self): # 插入文本槽函数，将文本插入场景中
-        self.cancel_active_modes() # 取消激活模式槽函数，将所有激活模式取消激活
-        item = BeeTextItem() # 创建文本项对象，用于插入场景中
-        pos = self.mapToScene(self.mapFromGlobal(self.cursor().pos())) # 获取当前光标位置映射到场景坐标，作为文本项插入位置
-        item.setScale(1 / self.get_scale()) # 设置文本项缩放比例，根据当前缩放比例计算得到
-        self.undo_stack.push(commands.InsertItems(self.scene, [item], pos)) # 插入文本项到场景中，参数为场景对象、文本项列表、插入位置  
+    def on_action_insert_text(self):
+        self.cancel_active_modes()
+        item = BeeTextItem()
+        pos = self.mapToScene(self.mapFromGlobal(self.cursor().pos()))
+        item.setScale(1 / self.get_scale())
+        self.undo_stack.push(commands.InsertItems(self.scene, [item], pos))
 
-    def on_action_copy(self): # 复制槽函数，将选中的项目复制到剪贴板中
-        logger.debug('Copying to clipboard...') # 调试日志，提示复制到剪贴板
-        self.cancel_active_modes() # 取消激活模式槽函数，将所有激活模式取消激活
-        clipboard = QtWidgets.QApplication.clipboard() # 获取应用程序剪贴板对象，用于复制项目到剪贴板中
-        items = self.scene.selectedItems(user_only=True) # 获取场景中选中的项目列表，参数为仅包含用户选择的项目  
+    def on_action_copy(self):
+        logger.debug('Copying to clipboard...')
+        self.cancel_active_modes()
+        clipboard = QtWidgets.QApplication.clipboard()
+        items = self.scene.selectedItems(user_only=True)
 
         # At the moment, we can only copy one image to the global
         # clipboard. (Later, we might create an image of the whole
         # selection for external copying.)
-        items[0].copy_to_clipboard(clipboard) # 复制选中的项目到剪贴板中，参数为应用程序剪贴板对象
+        items[0].copy_to_clipboard(clipboard)
 
         # However, we can copy all items to the internal clipboard:
-        self.scene.copy_selection_to_internal_clipboard() # 复制选中的项目到内部剪贴板中，参数为场景对象
+        self.scene.copy_selection_to_internal_clipboard()
 
         # We set a marker for ourselves in the global clipboard so
         # that we know to look up the internal clipboard when pasting:
-        clipboard.mimeData().setData( # 设置应用程序剪贴板对象的自定义数据，用于标识复制的项目数量
-            'beeref/items', QtCore.QByteArray.number(len(items))) # 设置自定义数据，参数为数据类型（'beeref/items'）和数据值（项目数量的字节数组表示）  
+        clipboard.mimeData().setData(
+            'beeref/items', QtCore.QByteArray.number(len(items)))
 
-    def on_action_paste(self): # 粘贴槽函数，将剪贴板中的项目粘贴到场景中
-        self.cancel_active_modes() # 取消激活模式槽函数，将所有激活模式取消激活
-        logger.debug('Pasting from clipboard...') # 调试日志，提示从剪贴板粘贴
-        clipboard = QtWidgets.QApplication.clipboard() # 获取应用程序剪贴板对象，用于粘贴项目到场景中
-        pos = self.mapToScene(self.mapFromGlobal(self.cursor().pos())) # 获取当前光标位置映射到场景坐标，作为粘贴位置   
+    def on_action_paste(self):
+        self.cancel_active_modes()
+        logger.debug('Pasting from clipboard...')
+        clipboard = QtWidgets.QApplication.clipboard()
+        pos = self.mapToScene(self.mapFromGlobal(self.cursor().pos()))
 
         # See if we need to look up the internal clipboard:
-        data = clipboard.mimeData().data('beeref/items') # 获取应用程序剪贴板对象的自定义数据，用于标识复制的项目数量
-        logger.debug(f'Custom data in clipboard: {data}') # 调试日志，提示自定义数据在剪贴板中      
-        if data and self.scene.internal_clipboard: # 如果自定义数据在剪贴板中且场景对象有内部剪贴板
+        data = clipboard.mimeData().data('beeref/items')
+        logger.debug(f'Custom data in clipboard: {data}')
+        if data and self.scene.internal_clipboard:
             # Checking that internal clipboard exists since the user
             # may have opened a new scene since copying.
-            self.scene.paste_from_internal_clipboard(pos) # 从内部剪贴板中粘贴项目到场景中，参数为粘贴位置  
+            self.scene.paste_from_internal_clipboard(pos)
             return
 
-        img = clipboard.image() # 获取应用程序剪贴板对象的图像数据
-        if not img.isNull(): # 如果图像数据不是空的
-            item = BeePixmapItem(img) # 创建图片项对象，参数为图像数据
-            self.undo_stack.push(commands.InsertItems(self.scene, [item], pos)) # 插入图片项到场景中，参数为场景对象、图片项列表、插入位置
-            if len(self.scene.items()) == 1: # 如果场景中只有一个项目（即插入的图片项） 
-             if len(self.scene.items()) == 1: # 
+        img = clipboard.image()
+        if not img.isNull():
+            item = BeePixmapItem(img)
+            self.undo_stack.push(commands.InsertItems(self.scene, [item], pos))
+            if len(self.scene.items()) == 1:
+             if len(self.scene.items()) == 1:
                 # This is the first image in the scene
-                self.on_action_fit_scene() # 缩放场景槽函数，将场景缩放以适应所有项目
+                self.on_action_fit_scene()
             return
-        text = clipboard.text() # 获取应用程序剪贴板对象的文本数据
-        if text: # 如果文本数据不是空的
-            item = BeeTextItem(text) # 创建文本项对象，参数为文本数据 
-            item.setScale(1 / self.get_scale()) # 设置文本项缩放比例，根据当前缩放比例计算得到
-            self.undo_stack.push(commands.InsertItems(self.scene, [item], pos)) # 插入文本项到场景中，参数为场景对象、文本项列表、插入位置  
+        text = clipboard.text()
+        if text:
+            item = BeeTextItem(text)
+            item.setScale(1 / self.get_scale())
+            self.undo_stack.push(commands.InsertItems(self.scene, [item], pos))
             return
 
         msg = 'No image data or text in clipboard or image too big'
-        logger.info(msg) # 信息日志，提示没有图像数据或文本数据在剪贴板中或图像太大
-        widgets.BeeNotification(self, msg) # 显示通知槽函数，参数为父窗口对象（self）和通知消息（msg）
+        logger.info(msg)
+        widgets.BeeNotification(self, msg)
 
-    def on_action_open_settings_dir(self): # 打开设置目录槽函数，用于打开应用程序的设置目录 
-        dirname = os.path.dirname(self.settings.fileName()) # 获取应用程序设置文件的目录路径
+    def on_action_open_settings_dir(self):
+        dirname = os.path.dirname(self.settings.fileName())
         QtGui.QDesktopServices.openUrl(
-            QtCore.QUrl.fromLocalFile(dirname)) # 打开目录路径对应的本地文件资源    
+            QtCore.QUrl.fromLocalFile(dirname))
 
-    def on_selection_changed(self): # 选择项改变槽函数，用于处理场景中选中项的变化
+    def on_selection_changed(self):
         logger.debug('Currently selected items: %s',
-                     len(self.scene.selectedItems(user_only=True))) # 调试日志，提示当前选中的项目数量  
-        self.actiongroup_set_enabled('active_when_selection', # 启用/禁用操作组槽函数，根据场景是否有选中项来启用/禁用操作组
-                                     self.scene.has_selection()) # 启用/禁用操作组槽函数，根据场景是否有选中项来启用/禁用操作组
-        self.actiongroup_set_enabled('active_when_single_image', # 启用/禁用操作组槽函数，根据场景是否有单个图片选中项来启用/禁用操作组
-                                     self.scene.has_single_image_selection()) # 启用/禁用操作组槽函数，根据场景是否有单个图片选中项来启用/禁用操作组
+                     len(self.scene.selectedItems(user_only=True)))
+        self.actiongroup_set_enabled('active_when_selection',
+                                     self.scene.has_selection())
+        self.actiongroup_set_enabled('active_when_single_image',
+                                     self.scene.has_single_image_selection())
 
-        if self.scene.has_selection(): # 如果场景有选中项
-            item = self.scene.selectedItems(user_only=True)[0] # 获取场景中第一个选中项，参数为用户仅选择项 
-            grayscale = getattr(item, 'grayscale', False) # 获取选中项的灰度属性，默认值为False
-            actions.actions['grayscale'].qaction.setChecked(grayscale) # 设置灰度操作项的复选框状态，根据选中项的灰度属性来设置
-        self.viewport().repaint() # 重绘视口槽函数，用于刷新视口显示，确保选中项的灰度属性复选框状态正确显示
+        if self.scene.has_selection():
+            item = self.scene.selectedItems(user_only=True)[0]
+            grayscale = getattr(item, 'grayscale', False)
+            actions.actions['grayscale'].qaction.setChecked(grayscale)
+        self.viewport().repaint()
 
-    def on_cursor_changed(self, cursor): # 光标改变槽函数，用于处理场景中光标位置的变化
-        if self.active_mode is None: # 如果当前激活模式为None
-            self.viewport().setCursor(cursor) # 设置视口光标为参数cursor
+    def on_cursor_changed(self, cursor):
+        if self.active_mode is None:
+            self.viewport().setCursor(cursor)
 
-    def on_cursor_cleared(self): # 光标清除槽函数，用于处理场景中光标位置的清除
-        if self.active_mode is None: # 如果当前激活模式为None
-            self.viewport().unsetCursor() # 清除视口光标    
+    def on_cursor_cleared(self):
+        if self.active_mode is None:
+            self.viewport().unsetCursor()
 
-    def recalc_scene_rect(self): # 重新计算场景矩形槽函数，用于调整场景矩形以适应所有项目
+    def recalc_scene_rect(self):
         """Resize the scene rectangle so that it is always one view width
         wider than all items' bounding box at each side and one view
         width higher on top and bottom. This gives the impression of
         an infinite canvas."""
 
-        if self.previous_transform: # 如果之前有变换矩阵
+        if self.previous_transform:
             return
-        logger.trace('Recalculating scene rectangle...') # 跟踪日志，提示重新计算场景矩形
+        logger.trace('Recalculating scene rectangle...')
         try:
-            topleft = self.mapFromScene( # 映射场景矩形的左上角到视口坐标
-                self.scene.itemsBoundingRect().topLeft()) # 映射场景矩形的左上角到视口坐标
-            topleft = self.mapToScene(QtCore.QPoint( # 映射视口坐标的左上角到场景坐标
-                int(topleft.x() - self.size().width() / 2), # 减去视口宽度的一半，确保场景矩形在视口宽度的一半宽度内 
-                int(topleft.y() - self.size().height() / 2))) # 减去视口高度的一半，确保场景矩形在视口高度的一半高度内
-            bottomright = self.mapFromScene( # 映射场景矩形的右下角到视口坐标
-                self.scene.itemsBoundingRect().bottomRight()) # 映射场景矩形的右下角到视口坐标 
-            bottomright = self.mapToScene(QtCore.QPoint( # 映射视口坐标的右下角到场景坐标
-                int(bottomright.x() + self.size().width() / 2), # 加上视口宽度的一半，确保场景矩形在视口宽度的一半宽度内
-                int(bottomright.y() + self.size().height() / 2))) # 加上视口高度的一半，确保场景矩形在视口高度的一半高度内   
-            self.setSceneRect(QtCore.QRectF(topleft, bottomright)) # 设置场景矩形为新计算的矩形
-        except OverflowError: # 处理溢出错误，当场景矩形超出最大尺寸时触发
-            logger.info('Maximum scene size reached') # 信息日志，提示最大场景尺寸已达到
-        logger.trace('Done recalculating scene rectangle') # 跟踪日志，提示完成重新计算场景矩形 
+            topleft = self.mapFromScene(
+                self.scene.itemsBoundingRect().topLeft())
+            topleft = self.mapToScene(QtCore.QPoint(
+                int(topleft.x() - self.size().width() / 2),
+                int(topleft.y() - self.size().height() / 2)))
+            bottomright = self.mapFromScene(
+                self.scene.itemsBoundingRect().bottomRight())
+            bottomright = self.mapToScene(QtCore.QPoint(
+                int(bottomright.x() + self.size().width() / 2),
+                int(bottomright.y() + self.size().height() / 2)))
+            self.setSceneRect(QtCore.QRectF(topleft, bottomright))
+        except OverflowError:
+            logger.info('Maximum scene size reached')
+        logger.trace('Done recalculating scene rectangle')
 
-    def get_zoom_size(self, func): # 获取缩放尺寸槽函数，用于计算场景中所有项目的边界框尺寸
+    def get_zoom_size(self, func):
         """Calculates the size of all items' bounding box in the view's
         coordinates.
 
@@ -809,34 +824,34 @@ class BeeGraphicsView(MainControlsMixin,
             arguments and turns it into a number, for ex. ``min`` or ``max``.
         """
 
-        topleft = self.mapFromScene( # 映射场景矩形的左上角到视口坐标
-            self.scene.itemsBoundingRect().topLeft()) # 映射场景矩形的左上角到视口坐标
-        bottomright = self.mapFromScene( # 映射场景矩形的右下角到视口坐标
-            self.scene.itemsBoundingRect().bottomRight()) # 映射场景矩形的右下角到视口坐标   
-        return func(bottomright.x() - topleft.x(), # 计算场景中所有项目的边界框宽度
-                    bottomright.y() - topleft.y()) # 计算场景中所有项目的边界框高度 
+        topleft = self.mapFromScene(
+            self.scene.itemsBoundingRect().topLeft())
+        bottomright = self.mapFromScene(
+            self.scene.itemsBoundingRect().bottomRight())
+        return func(bottomright.x() - topleft.x(),
+                    bottomright.y() - topleft.y())
 
-    def scale(self, *args, **kwargs): # 缩放槽函数，用于处理场景中项目的缩放
-        super().scale(*args, **kwargs) # 调用父类的缩放槽函数，用于处理场景中项目的缩放
-        self.scene.on_view_scale_change() # 调用场景中的视图缩放变化槽函数，用于处理场景中项目的缩放变化
-        self.recalc_scene_rect() # 重新计算场景矩形槽函数，用于调整场景矩形以适应所有项目
+    def scale(self, *args, **kwargs):
+        super().scale(*args, **kwargs)
+        self.scene.on_view_scale_change()
+        self.recalc_scene_rect()
 
     def get_scale(self):
-        return self.transform().m11() # 返回当前变换矩阵的缩放比例因子  
+        return self.transform().m11()
 
-    def pan(self, delta): # 平移槽函数，用于处理场景中项目的平移
-        if not self.scene.items(): # 如果场景中没有项目
-            logger.debug('No items in scene; ignore pan') # 调试日志，提示场景中没有项目，忽略平移
+    def pan(self, delta):
+        if not self.scene.items():
+            logger.debug('No items in scene; ignore pan')
             return
 
-        hscroll = self.horizontalScrollBar() # 获取水平滚动条
-        hscroll.setValue(int(hscroll.value() + delta.x())) # 设置水平滚动条的值为当前值加上平移量的整数部分
-        vscroll = self.verticalScrollBar() # 获取垂直滚动条
-        vscroll.setValue(int(vscroll.value() + delta.y())) # 设置垂直滚动条的值为当前值加上平移量的整数部分 
+        hscroll = self.horizontalScrollBar()
+        hscroll.setValue(int(hscroll.value() + delta.x()))
+        vscroll = self.verticalScrollBar()
+        vscroll.setValue(int(vscroll.value() + delta.y()))
 
-    def zoom(self, delta, anchor): # 缩放槽函数，用于处理场景中项目的缩放
-        if not self.scene.items(): # 如果场景中没有项目
-            logger.debug('No items in scene; ignore zoom') # 调试日志，提示场景中没有项目，忽略缩放 
+    def zoom(self, delta, anchor):
+        if not self.scene.items():
+            logger.debug('No items in scene; ignore zoom')
             return
 
         # We calculate where the anchor is before and after the zoom
@@ -844,150 +859,150 @@ class BeeGraphicsView(MainControlsMixin,
         # We can't use QGraphicsView's AnchorUnderMouse since it
         # uses the current cursor position while we need the initial mouse
         # press position for zooming with Ctrl + Middle Drag
-        anchor = QtCore.QPoint(round(anchor.x()), # 四舍五入 anchor 的 x 坐标
-                               round(anchor.y())) # 四舍五入 anchor 的 y 坐标
-        ref_point = self.mapToScene(anchor) # 映射 anchor 到场景坐标
-        if delta == 0: # 如果缩放量为 0
-            return  # 如果缩放量为 0，忽略缩放
-        factor = 1 + abs(delta / 1000) # 计算缩放因子
-        if delta > 0: # 如果缩放量大于 0
-            if self.get_zoom_size(max) < 10000000: # 如果缩放后场景中所有项目的边界框宽度和高度都小于 10000000
-                self.scale(factor, factor) # 缩放场景中所有项目的边界框宽度和高度
-            else:  # 如果缩放后场景中所有项目的边界框宽度和高度都大于等于 10000000
-                logger.debug('Maximum zoom size reached') # 调试日志，提示最大缩放尺寸已达到
-                return # 如果缩放后场景中所有项目的边界框宽度和高度都大于等于 10000000，忽略缩放
+        anchor = QtCore.QPoint(round(anchor.x()),
+                               round(anchor.y()))
+        ref_point = self.mapToScene(anchor)
+        if delta == 0:
+            return  
+        factor = 1 + abs(delta / 1000)
+        if delta > 0:
+            if self.get_zoom_size(max) < 10000000:
+                self.scale(factor, factor)
+            else:  
+                logger.debug('Maximum zoom size reached')
+                return
         else:
-            if self.get_zoom_size(min) > 50: # 如果缩放后场景中所有项目的边界框宽度和高度都大于 50
-                self.scale(1/factor, 1/factor) # 缩放场景中所有项目的边界框宽度和高度
+            if self.get_zoom_size(min) > 50:
+                self.scale(1/factor, 1/factor)
             else:
-                logger.debug('Minimum zoom size reached') # 调试日志，提示最小缩放尺寸已达到
-                return # 如果缩放后场景中所有项目的边界框宽度和高度都大于 50，忽略缩放  
+                logger.debug('Minimum zoom size reached')
+                return
 
-        self.pan(self.mapFromScene(ref_point) - anchor) # 平移场景中所有项目的边界框宽度和高度
-        self.reset_previous_transform() # 重置前一个变换矩阵，用于处理场景中项目的缩放变化
+        self.pan(self.mapFromScene(ref_point) - anchor)
+        self.reset_previous_transform()
 
-    def wheelEvent(self, event): # 滚轮事件槽函数，用于处理场景中项目的缩放和平移
+    def wheelEvent(self, event):
         action, inverted\
-            = self.keyboard_settings.mousewheel_action_for_event(event) # 获取滚轮事件的缩放和平移操作
+            = self.keyboard_settings.mousewheel_action_for_event(event)
 
-        delta = event.angleDelta().y() # 获取滚轮事件的缩放增量
-        if inverted: # 如果滚轮事件的缩放增量为负数
-            delta = delta * -1 # 取反缩放增量   
+        delta = event.angleDelta().y()
+        if inverted:
+            delta = delta * -1
 
-        if action == 'zoom': # 如果滚轮事件的缩放操作
-            self.zoom(delta, event.position()) # 调用缩放槽函数，用于处理场景中项目的缩放
-            event.accept() # 接受滚轮事件，防止事件冒泡到父类
+        if action == 'zoom':
+            self.zoom(delta, event.position())
+            event.accept()
             return 
-        if action == 'pan_horizontal': # 如果滚轮事件的水平平移操作
-            self.pan(QtCore.QPointF(0, 0.5 * delta)) # 调用平移槽函数，用于处理场景中项目的水平平移
-            event.accept() # 接受滚轮事件，防止事件冒泡到父类
+        if action == 'pan_horizontal':
+            self.pan(QtCore.QPointF(0, 0.5 * delta))
+            event.accept()
             return
-        if action == 'pan_vertical': # 如果滚轮事件的垂直平移操作
-            self.pan(QtCore.QPointF(0.5 * delta, 0)) # 调用平移槽函数，用于处理场景中项目的垂直平移
-            event.accept() # 接受滚轮事件，防止事件冒泡到父类   
-            return
-
-    def mousePressEvent(self, event): # 鼠标按下事件槽函数，用于处理场景中项目的缩放和平移
-        if self.mousePressEventMainControls(event): # 如果鼠标按下事件是主控件的事件
+        if action == 'pan_vertical':
+            self.pan(QtCore.QPointF(0.5 * delta, 0))
+            event.accept()
             return
 
-        if self.active_mode == self.SAMPLE_COLOR_MODE: # 如果当前模式是采样颜色模式
-            if (event.button() == Qt.MouseButton.LeftButton): # 如果鼠标按下事件是左键
-                color = self.scene.sample_color_at( # 调用场景中的采样颜色函数，用于获取场景中指定位置的颜色
-                    self.mapToScene(event.pos())) # 映射鼠标按下事件的位置到场景坐标
-                if color: # 如果获取到颜色
-                    name = qcolor_to_hex(color) # 将颜色转换为十六进制字符串
-                    clipboard = QtWidgets.QApplication.clipboard() # 获取应用程序的剪贴板对象
-                    clipboard.setText(name) # 将颜色的十六进制字符串复制到剪贴板
-                    self.scene.internal_clipboard = [] # 清空场景中的内部剪贴板
+    def mousePressEvent(self, event):
+        if self.mousePressEventMainControls(event):
+            return
+
+        if self.active_mode == self.SAMPLE_COLOR_MODE:
+            if (event.button() == Qt.MouseButton.LeftButton):
+                color = self.scene.sample_color_at(
+                    self.mapToScene(event.pos()))
+                if color:
+                    name = qcolor_to_hex(color)
+                    clipboard = QtWidgets.QApplication.clipboard()
+                    clipboard.setText(name)
+                    self.scene.internal_clipboard = []
                     msg = f'Copied color to clipboard: {name}' 
-                    logger.debug(msg) # 调试日志，提示复制颜色到剪贴板
-                    widgets.BeeNotification(self, msg) # 显示通知消息，提示复制颜色到剪贴板
+                    logger.debug(msg)
+                    widgets.BeeNotification(self, msg)
                 else:
-                    logger.debug('No color found at %s', event.pos()) # 调试日志，提示未找到颜色
-            self.cancel_sample_color_mode() # 取消采样颜色模式
-            event.accept() # 接受鼠标按下事件，防止事件冒泡到父类
+                    logger.debug('No color found at %s', event.pos())
+            self.cancel_sample_color_mode()
+            event.accept()
             return
 
-        action, inverted = self.keyboard_settings.mouse_action_for_event(event) # 获取鼠标按下事件的缩放和平移操作
+        action, inverted = self.keyboard_settings.mouse_action_for_event(event)
 
-        if action == 'zoom': # 如果鼠标按下事件的缩放操作
-            self.active_mode = self.ZOOM_MODE # 设置当前模式为缩放模式
-            self.event_start = event.position() # 记录鼠标按下事件的位置
-            self.event_anchor = event.position() # 记录鼠标按下事件的位置
-            self.event_inverted = inverted # 记录鼠标按下事件的缩放增量是否为负数
-            event.accept() # 接受鼠标按下事件，防止事件冒泡到父类
+        if action == 'zoom':
+            self.active_mode = self.ZOOM_MODE
+            self.event_start = event.position()
+            self.event_anchor = event.position()
+            self.event_inverted = inverted
+            event.accept()
             return
 
-        if action == 'pan': # 如果鼠标按下事件的平移操作
+        if action == 'pan':
             logger.trace('Begin pan')
-            self.active_mode = self.PAN_MODE # 设置当前模式为平移模式
-            self.event_start = event.position() # 记录鼠标按下事件的位置    
-            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor) # 设置视口的光标为关闭手型光标
+            self.active_mode = self.PAN_MODE
+            self.event_start = event.position()
+            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
             # ClosedHandCursor and OpenHandCursor don't work, but I
             # don't know if that's only on my system or a general
             # problem. It works with other cursors.
-            event.accept() # 接受鼠标按下事件，防止事件冒泡到父类
+            event.accept()
             return
 
-        super().mousePressEvent(event) # 调用父类的鼠标按下事件槽函数，用于处理其他鼠标按下事件
+        super().mousePressEvent(event)
 
-    def mouseMoveEvent(self, event): # 鼠标移动事件槽函数，用于处理场景中项目的缩放和平移
-        if self.active_mode == self.PAN_MODE: # 如果当前模式是平移模式
-            self.reset_previous_transform() # 重置前一次变换，用于处理场景中项目的缩放和平移
-            pos = event.position() # 获取鼠标移动事件的位置
-            self.pan(self.event_start - pos) # 调用平移槽函数，用于处理场景中项目的平移
-            self.event_start = pos # 更新鼠标按下事件的位置
-            event.accept() # 接受鼠标移动事件，防止事件冒泡到父类   
-            return
-
-        if self.active_mode == self.ZOOM_MODE: # 如果当前模式是缩放模式
-            self.reset_previous_transform() # 重置前一次变换，用于处理场景中项目的缩放和平移
-            pos = event.position() # 获取鼠标移动事件的位置
-            delta = (self.event_start - pos).y() # 计算鼠标移动事件的垂直增量
-            if self.event_inverted: # 如果鼠标移动事件的缩放增量为负数
-                delta *= -1 # 取反，用于处理场景中项目的缩放
-            self.event_start = pos # 更新鼠标按下事件的位置 
-            self.zoom(delta * 20, self.event_anchor) # 调用缩放槽函数，用于处理场景中项目的缩放
-            event.accept() # 接受鼠标移动事件，防止事件冒泡到父类   
+    def mouseMoveEvent(self, event):
+        if self.active_mode == self.PAN_MODE:
+            self.reset_previous_transform()
+            pos = event.position()
+            self.pan(self.event_start - pos)
+            self.event_start = pos
+            event.accept()
             return
 
-        if self.active_mode == self.SAMPLE_COLOR_MODE: # 如果当前模式是采样颜色模式
-            self.sample_color_widget.update( # 更新采样颜色小部件的显示
-                event.position(), # 更新采样颜色小部件的显示位置
-                self.scene.sample_color_at(self.mapToScene(event.pos()))) # 更新采样颜色小部件的显示颜色
-            event.accept() # 接受鼠标移动事件，防止事件冒泡到父类   
+        if self.active_mode == self.ZOOM_MODE:
+            self.reset_previous_transform()
+            pos = event.position()
+            delta = (self.event_start - pos).y()
+            if self.event_inverted:
+                delta *= -1
+            self.event_start = pos
+            self.zoom(delta * 20, self.event_anchor)
+            event.accept()
             return
 
-        if self.mouseMoveEventMainControls(event): # 如果主控件处理了鼠标移动事件
+        if self.active_mode == self.SAMPLE_COLOR_MODE:
+            self.sample_color_widget.update(
+                event.position(),
+                self.scene.sample_color_at(self.mapToScene(event.pos())))
+            event.accept()
             return
-        super().mouseMoveEvent(event) # 调用父类的鼠标移动事件槽函数，用于处理其他鼠标移动事件
 
-    def mouseReleaseEvent(self, event): # 鼠标释放事件槽函数，用于处理场景中项目的缩放和平移 
-        if self.active_mode == self.PAN_MODE: # 如果当前模式是平移模式
-            logger.trace('End pan') # 调试日志，提示结束平移
-            self.viewport().unsetCursor() # 重置视口的光标为默认光标
-            self.active_mode = None # 重置当前模式为 None
-            event.accept() # 接受鼠标释放事件，防止事件冒泡到父类   
+        if self.mouseMoveEventMainControls(event):
             return
-        if self.active_mode == self.ZOOM_MODE: # 如果当前模式是缩放模式
-            self.active_mode = None # 重置当前模式为 None
-            event.accept() # 接受鼠标释放事件，防止事件冒泡到父类   
-            return
-        if self.mouseReleaseEventMainControls(event): # 如果主控件处理了鼠标释放事件
-            return
-        super().mouseReleaseEvent(event) # 调用父类的鼠标释放事件槽函数，用于处理其他鼠标释放事件   
+        super().mouseMoveEvent(event)
 
-    def resizeEvent(self, event): # 场景视图的大小调整事件槽函数，用于处理场景视图的大小调整
-        super().resizeEvent(event) # 调用父类的大小调整事件槽函数，用于处理其他大小调整事件
-        self.recalc_scene_rect() # 重新计算场景矩形，用于处理场景中项目的缩放和平移
-        self.welcome_overlay.resize(self.size()) # 调整欢迎叠加层的大小，用于处理场景视图的大小调整
+    def mouseReleaseEvent(self, event):
+        if self.active_mode == self.PAN_MODE:
+            logger.trace('End pan')
+            self.viewport().unsetCursor()
+            self.active_mode = None
+            event.accept()
+            return
+        if self.active_mode == self.ZOOM_MODE:
+            self.active_mode = None
+            event.accept()
+            return
+        if self.mouseReleaseEventMainControls(event):
+            return
+        super().mouseReleaseEvent(event)
 
-    def keyPressEvent(self, event): # 键盘按下事件槽函数，用于处理场景中项目的缩放和平移
-        if self.keyPressEventMainControls(event): # 如果主控件处理了键盘按下事件
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.recalc_scene_rect()
+        self.welcome_overlay.resize(self.size())
+
+    def keyPressEvent(self, event):
+        if self.keyPressEventMainControls(event):
             return
-        if self.active_mode == self.SAMPLE_COLOR_MODE: # 如果当前模式是采样颜色模式
-            self.cancel_sample_color_mode() # 取消采样颜色模式
-            event.accept() # 接受键盘按下事件，防止事件冒泡到父类   
+        if self.active_mode == self.SAMPLE_COLOR_MODE:
+            self.cancel_sample_color_mode()
+            event.accept()
             return
-        super().keyPressEvent(event) # 调用父类的键盘按下事件槽函数，用于处理其他键盘按下事件
+        super().keyPressEvent(event)

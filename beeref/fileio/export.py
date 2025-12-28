@@ -121,7 +121,9 @@ class SceneExporterBase(ExporterBase):
         self.parameters = self.DEFAULT_PARAMETERS.copy()
         self.parameters['width'] = self.default_size.width()
         self.parameters['height'] = self.default_size.height()
-        
+        # 初始化size属性
+        self.size = self.default_size
+
     # 获取参数配置
     def get_parameters(self):
         return self.parameters
@@ -399,12 +401,20 @@ class SceneToPDFExporter(SceneExporterBase):
             
             # 设置纸张大小和分辨率
             # 在PyQt6中，setPaperSize已被setPageSize替代
-            printer.setPageSize(QtGui.QPageSize(QtCore.QSizeF(self.size.width(), self.size.height()), QtGui.QPageSize.Unit.Point))
+            # 尝试使用Millimeter单位而不是Point单位
+            # 先将像素转换为毫米 (1 inch = 25.4 mm, 1 inch = DPI pixels)
+            mm_width = (self.size.width() / self.parameters['dpi']) * 25.4
+            mm_height = (self.size.height() / self.parameters['dpi']) * 25.4
+            page_size = QtGui.QPageSize(QtCore.QSizeF(mm_width, mm_height), QtGui.QPageSize.Unit.Millimeter)
+            printer.setPageSize(page_size)
             printer.setResolution(self.parameters['dpi'])  # 使用参数中的DPI
             
             # 按比例调整边距
             margin = max(self.size.width(), self.size.height()) * self.parameters['margin_percent'] / 100
             logger.debug(f'Final export margin: {margin}')
+            logger.debug(f'Final export size: {self.size}')
+            logger.debug(f'Final export target size: {self.size.width() - 2 * margin} x {self.size.height() - 2 * margin}')
+            logger.debug(f'PDF page size in mm: {mm_width} x {mm_height}')
             
             # 创建绘图器并渲染场景
             painter = QtGui.QPainter()
@@ -419,6 +429,7 @@ class SceneToPDFExporter(SceneExporterBase):
                 self.size.width() - 2 * margin,
                 self.size.height() - 2 * margin)
             logger.trace(f'Final export target_rect: {target_rect}')
+            logger.trace(f'Scene bounding rect: {self.scene.itemsBoundingRect()}')
             
             self.scene.render(painter,
                             source=self.scene.itemsBoundingRect(),
