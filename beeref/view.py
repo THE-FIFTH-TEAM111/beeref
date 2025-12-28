@@ -605,16 +605,12 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         if not all_items:
             return
 
-        # 获取视图变换
-        transform = self.transform()
-        scale_factor = transform.m11()
-
         # 计算网格布局
         num_items = len(all_items)
         cols = int(math.ceil(math.sqrt(num_items)))
         rows = int(math.ceil(num_items / cols))
 
-        # 计算单元格大小（考虑缩放因子）
+        # 计算单元格大小
         width = self.viewport().width()
         height = self.viewport().height()
         cell_width = width / cols
@@ -622,6 +618,9 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
         painter = QtGui.QPainter(self.viewport())
         painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
+
+        # 获取当前视图的缩放比例
+        scale_factor = self.get_scale()
 
         # 绘制网格背景
         painter.fillRect(0, 0, width, height, QtGui.QColor(50, 50, 50))
@@ -634,26 +633,26 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             x = col * cell_width
             y = row * cell_height
     
-            # 缩放图像以适应网格单元格
+            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
             pixmap = item.pixmap()
+            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
             scaled_pixmap = pixmap.scaled(
-                int(cell_width), 
-                int(cell_height),
+                int(cell_width / scale_factor), 
+                int(cell_height / scale_factor),
                 QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                 QtCore.Qt.TransformationMode.SmoothTransformation
             )
     
             # 居中绘制
-            dx = (cell_width - scaled_pixmap.width()) // 2
-            dy = (cell_height - scaled_pixmap.height()) // 2
+            dx = (cell_width - scaled_pixmap.width() * scale_factor) // 2
+            dy = (cell_height - scaled_pixmap.height() * scale_factor) // 2
         
             # 保存当前绘制状态
             painter.save()
-            
-            # 应用视图的缩放变换到当前单元格
-            painter.translate(x + dx + scaled_pixmap.width() // 2, y + dy + scaled_pixmap.height() // 2)
+        
+            # 应用缩放变换
+            painter.translate(x + dx, y + dy)
             painter.scale(scale_factor, scale_factor)
-            painter.translate(-scaled_pixmap.width() // 2, -scaled_pixmap.height() // 2)
         
             # 绘制缩放后的图像
             painter.drawPixmap(0, 0, scaled_pixmap)
@@ -661,11 +660,11 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             # 恢复绘制状态
             painter.restore()
         
-            # 绘制边框（不应用变换，保持固定大小）
+            # 绘制边框
             painter.setPen(QtGui.QPen(QtGui.QColor(255, 223, 0), 2))
             painter.drawRect(int(x), int(y), int(cell_width), int(cell_height))
         
-            # 绘制文件名（不应用变换，保持固定大小）
+            # 绘制文件名
             font = painter.font()
             font.setPointSize(10)
             painter.setFont(font)
@@ -1263,9 +1262,6 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         logger.trace('Done recalculating scene rectangle')
 
     def get_zoom_size(self, func):
-        if self.compare_mode:
-            # In compare mode, use the viewport size instead of the scene items' bounding rect
-            return func(self.viewport().width(), self.viewport().height())
         topleft = self.mapFromScene(self.scene.itemsBoundingRect().topLeft())
         bottomright = self.mapFromScene(self.scene.itemsBoundingRect().bottomRight())
         return func(bottomright.x() - topleft.x(), bottomright.y() - topleft.y())
@@ -1560,3 +1556,235 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             self.draw_comparison_grid()
         else:
             super().paintEvent(event)
+
+    def on_action_add_tag(self):
+        """为选中的图像添加标签"""
+        # 获取当前选中的图像项
+        selected_items = self.scene.selectedItems()
+        pixmap_items = [item for item in selected_items if hasattr(item, 'save_id') and item.save_id is not None]
+    
+        if not pixmap_items:
+            QtWidgets.QMessageBox.information(self, "添加标签", "请先选择一个或多个图像")
+            return
+    
+        # 获取所有标签
+        all_tags = self.scene.tag_manager.get_all_tags()
+    
+        if not all_tags:
+            QtWidgets.QMessageBox.information(self, "添加标签", "当前没有可用的标签，请先创建标签")
+            return
+    
+        # 弹出标签选择对话框
+        from beeref.widgets.tag_dialogs import TagSelectDialog
+        dialog = TagSelectDialog(self, all_tags)
+    
+        if dialog.exec():
+            selected_tag_id = dialog.get_selected_tag_id()
+            if selected_tag_id:
+                # 为所有选中的图像项添加标签
+                self.scene.tag_manager.add_tags_to_images(pixmap_items, [selected_tag_id])
+                QtWidgets.QMessageBox.information(self, "添加标签", f"已成功为{len(pixmap_items)}个图像添加标签")
+
+    def on_action_export_by_tag(self):
+        """按标签导出图像"""
+        # 获取所有标签
+        all_tags = self.scene.tag_manager.get_all_tags()
+    
+        if not all_tags:
+            QtWidgets.QMessageBox.information(self, "按标签导出", "当前没有可用的标签，请先创建标签")
+            return
+    
+        # 弹出标签选择对话框，指定 purpose="export"
+        from beeref.widgets.tag_dialogs import TagSelectDialog
+        dialog = TagSelectDialog(self, all_tags, purpose="export")  # 这里添加 purpose 参数
+    
+        if dialog.exec():
+            selected_tag_id = dialog.get_selected_tag_id()
+            if selected_tag_id:
+                # 选择导出目录
+                export_path = QtWidgets.QFileDialog.getExistingDirectory(
+                    self, "选择导出目录", "", QtWidgets.QFileDialog.Option.ShowDirsOnly
+                )
+            
+                if export_path:
+                    # 设置导出参数
+                    export_params = {
+                        "tag_id": selected_tag_id,
+                        "export_path": export_path,
+                        "format": "PNG",  # 默认导出为PNG格式
+                        "quality": 90,  # 默认质量90%
+                        "grayscale": False,  # 默认不转为灰度图
+                        "crop": False  # 默认不裁剪
+                    }
+                
+                    # 执行导出
+                    success = self.scene.tag_manager.export_tagged_images(
+                        export_params['tag_id'],
+                        export_params['export_path'],
+                        export_params
+                    )
+                
+                    if success:
+                        QtWidgets.QMessageBox.information(self, "导出成功", f"按标签导出完成，已导出到 {export_path}")
+                    else:
+                        QtWidgets.QMessageBox.warning(self, "导出失败", "没有找到符合条件的图像或导出过程中发生错误")
+
+class BeeView(QtWidgets.QGraphicsView):
+    # ... 现有代码 ...
+    
+    def __init__(self, *args, **kwargs):
+        # ... 现有初始化代码 ...
+        self.compare_mode = False
+        self.compare_items = []
+        self.setupCompareMode()
+        
+    def setupCompareMode(self):
+        """设置对比模式快捷键和菜单。"""
+        self.compare_action = QtWidgets.QAction(_('Toggle Compare Mode'), self)
+        self.compare_action.setShortcut('Ctrl+Shift+C')
+        self.compare_action.triggered.connect(self.toggleCompareMode)
+        self.addAction(self.compare_action)
+        
+    def toggleCompareMode(self):
+        """切换对比模式。"""
+        self.compare_mode = not self.compare_mode
+        self.scene().update()
+        
+    def paintEvent(self, event):
+        """重写绘制事件以处理对比模式。"""
+        super().paintEvent(event)
+        
+        if self.compare_mode:
+            self.drawComparisonGrid()
+            
+    
+    def drawComparisonGrid(self):
+        """在对比模式下绘制网格以显示收藏项。"""
+        # 获取所有图像项目（移除收藏项筛选条件）
+        all_items = [item for item in self.scene().items() 
+                    if hasattr(item, 'pixmap')]  # 确保是有pixmap属性的图像项目
+
+        if not all_items:
+            return
+        
+        # 计算网格布局
+        num_items = len(all_items)
+        cols = int(math.ceil(math.sqrt(num_items)))
+        rows = int(math.ceil(num_items / cols))
+    
+        width = self.viewport().width()
+        height = self.viewport().height()
+        cell_width = width / cols
+        cell_height = height / rows
+    
+        painter = QtGui.QPainter(self.viewport())
+        painter.setRenderHint(painter.RenderHint.SmoothPixmapTransform)
+    
+        # 获取当前视图的缩放比例
+        scale_factor = self.get_scale()
+    
+        # 绘制网格背景
+        painter.fillRect(0, 0, width, height, QtGui.QColor(50, 50, 50))
+    
+        # 绘制所有收藏项
+        for i, item in enumerate(all_items):
+            row = i // cols
+            col = i % cols
+        
+            x = col * cell_width
+            y = row * cell_height
+        
+            # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
+            pixmap = item.pixmap()
+            scaled_pixmap = pixmap.scaled(
+                int(cell_width / scale_factor), 
+                int(cell_height / scale_factor),
+                QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                QtCore.Qt.TransformationMode.SmoothTransformation
+            )
+        
+            # 居中绘制
+            dx = (cell_width - scaled_pixmap.width() * scale_factor) // 2
+            dy = (cell_height - scaled_pixmap.height() * scale_factor) // 2
+        
+            # 保存当前绘制状态
+            painter.save()
+        
+            # 应用缩放变换
+            painter.translate(x + dx, y + dy)
+            painter.scale(scale_factor, scale_factor)
+        
+            # 绘制缩放后的图像
+            painter.drawPixmap(0, 0, scaled_pixmap)
+        
+            # 恢复绘制状态
+            painter.restore()
+        
+            # 绘制边框
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 223, 0), 2))
+            painter.drawRect(x, y, cell_width, cell_height)
+        
+            # 绘制文件名
+            font = painter.font()
+            font.setPointSize(10)
+            painter.setFont(font)
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255)))
+            
+            filename = os.path.basename(item.filename) if item.filename else f'Item {i+1}'
+            painter.drawText(int(x + 5), int(y + 20), filename)
+    
+        painter.end()
+
+    def _build_favorites_menu(self, menu=None):
+        """
+        构建收藏夹菜单项
+
+        参数:
+            menu: 收藏夹子菜单对象（可选）
+        """
+        # 如果提供了菜单，则保存为收藏夹子菜单
+        if menu:
+            self._favorites_submenu = menu
+        # 清除现有收藏夹菜单内容
+        self._clear_favorites_menu()
+
+        # 获取所有收藏项 - 修复：获取所有场景项目而不仅仅是选中项
+        favorite_items = [item for item in self.scene.items(user_only=True)
+                        if hasattr(item, 'favorite') and item.favorite]
+
+        # 为每个收藏项创建动作
+        for i, item in enumerate(favorite_items):
+            action_id = f'favorites_item_{i}'
+            # 创建动作定义
+            action = Action(id=action_id,
+                            menu_id='_build_favorites_menu',
+                            text=f'Item {i + 1}')
+            # 将动作添加到actions字典
+            self.actions[action_id] = action
+
+            # 创建动作对象，显示文件名（不含路径）
+            filename = os.path.basename(item.filename) if item.filename else f'Item {i+1}'
+            qaction = QtGui.QAction(filename, self)
+            # 连接触发信号到跳转到收藏项的方法（绑定当前收藏项）
+            qaction.triggered.connect(
+                partial(self.on_action_jump_to_favorite, item))
+            # 将动作添加到窗口
+            self.addAction(qaction)
+            # 保存QAction到动作定义
+            action.qaction = qaction
+            # 将动作添加到收藏夹子菜单
+            self._favorites_submenu.addAction(qaction)
+
+    def _clear_favorites_menu(self):
+        """清除收藏夹菜单中的所有动作"""
+        if hasattr(self, '_favorites_submenu'):
+            # 移除子菜单中所有动作的关联
+            for action in self._favorites_submenu.actions():
+                self.removeAction(action)
+            # 清空子菜单
+            self._favorites_submenu.clear()
+            # 从actions字典中移除收藏夹相关的动作
+            for key in list(self.actions.keys()):
+                if key.startswith('favorites_item_'):
+                    self.actions[key].qaction = None
+                    del self.actions[key]
