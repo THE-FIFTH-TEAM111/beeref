@@ -1020,6 +1020,48 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
                 self, 'Problem saving file',
                 ('<p>Problem saving file %s</p><p>File/directory not accessible</p>') % filename)
         else:
+            self.filename = filename # 设置文件名
+            self.undo_stack.setClean() # 设置撤销栈为干净状态   
+
+    def do_save(self, filename, create_new): # 保存场景槽函数
+        name, ext = os.path.splitext(filename) # 分离文件名和扩展名
+        if ext.lower() == '.pdf': # 如果是PDF格式
+            # 使用PDF导出器
+            exporter_cls = exporter_registry[ext]
+            exporter = exporter_cls(self.scene)
+            if not exporter.get_user_input(self): # 如果导出器需要用户输入
+                return
+            self.worker = fileio.ThreadedIO(exporter.export, filename)
+            self.worker.finished.connect(self.on_export_finished)
+            self.progress = widgets.BeeProgressDialog(
+                f'Saving {filename}',
+                worker=self.worker,
+                parent=self)
+            self.worker.start()
+        else: # 否则保存为bee文件
+            if not fileio.is_bee_file(filename):
+                filename = f'{filename}.bee'
+            self.worker = fileio.ThreadedIO(
+                fileio.save_bee, filename, self.scene, create_new=create_new)
+            self.worker.finished.connect(self.on_saving_finished)
+            self.progress = widgets.BeeProgressDialog(
+                f'Saving {filename}',
+                worker=self.worker,
+                parent=self)
+            self.worker.start()
+
+    def on_action_save_as(self): # 保存为槽函数
+        self.cancel_active_modes()
+        directory = os.path.dirname(self.filename) if self.filename else None
+        filename, f = QtWidgets.QFileDialog.getSaveFileName(
+            parent=self,
+            caption='Save file',
+            directory=directory,
+            filter=f'{constants.APPNAME} File (*.bee);;PDF Document (*.pdf)') # 添加PDF格式选项
+        if filename:
+            self.do_save(filename, create_new=True)
+
+    def on_action_save(self): # 保存槽函数
             self.filename = filename
             self.undo_stack.setClean()
 
@@ -1046,6 +1088,32 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         else:
             self.do_save(self.filename, create_new=False)
 
+    def on_action_export_scene(self): # 导出场景槽函数
+        # 设置默认文件名和目录
+        default_filename = 'beeref_export'
+        directory = os.path.dirname(self.filename) if self.filename else None
+        
+        # 如果有当前文件名，使用它作为基础生成默认导出文件名
+        if self.filename:
+            base_name = os.path.splitext(os.path.basename(self.filename))[0]
+            default_filename = f'{base_name}_export'
+            
+        # 完整的默认路径
+        if directory:
+            default_path = os.path.join(directory, default_filename)
+        else:
+            default_path = default_filename
+            
+        filename, formatstr = QtWidgets.QFileDialog.getSaveFileName(
+            parent=self,
+            caption='Export Scene',
+            directory=default_path,
+            filter=';;'.join(('All Export Formats (*.png *.jpg *.jpeg *.svg *.pdf)',
+                              'Image Files (*.png *.jpg *.jpeg *.svg)',
+                              'PNG (*.png)',
+                              'JPEG (*.jpg *.jpeg)',
+                              'SVG (*.svg)',
+                              'PDF (*.pdf)')))
     def on_action_export_scene(self):
         directory = os.path.dirname(self.filename) if self.filename else None
         filename, formatstr = QFileDialog.getSaveFileName(
@@ -1068,18 +1136,30 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
         self.worker = fileio.ThreadedIO(exporter.export, filename)
         self.worker.finished.connect(self.on_export_finished)
+        self.progress = widgets.BeeProgressDialog(
+            f'Exporting {filename}',
+            worker=self.worker,
+            parent=self)
         self.progress = widgets.BeeProgressDialog(f'Exporting {filename}', worker=self.worker, parent=self)
         self.worker.start()
 
     def on_export_finished(self, filename, errors):
         if errors:
             err_msg = '</br>'.join(str(errors))
+            QtWidgets.QMessageBox.warning(
+                self,
+                'Problem writing file',
             QMessageBox.warning(
                 self, 'Problem writing file',
                 f'<p>Problem writing file {filename}</p><p>{err_msg}</p>')
 
     def on_action_export_images(self):
         directory = os.path.dirname(self.filename) if self.filename else None
+        directory = QtWidgets.QFileDialog.getExistingDirectory(
+            parent=self,
+            caption='Export Images',
+            directory=directory)
+
         directory = QFileDialog.getExistingDirectory(parent=self, caption='Export Images', directory=directory)
         if not directory:
             return
@@ -1087,6 +1167,13 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         logger.debug(f'Got export directory {directory}')
         self.exporter = ImagesToDirectoryExporter(self.scene, directory)
         self.worker = fileio.ThreadedIO(self.exporter.export)
+        self.worker.user_input_required.connect(
+            self.on_export_images_file_exists)
+        self.worker.finished.connect(self.on_export_finished)
+        self.progress = widgets.BeeProgressDialog(
+            f'Exporting to {directory}',
+            worker=self.worker,
+            parent=self)
         self.worker.user_input_required.connect(self.on_export_images_file_exists)
         self.worker.finished.connect(self.on_export_finished)
         self.progress = widgets.BeeProgressDialog(f'Exporting to {directory}', worker=self.worker, parent=self)
@@ -1094,6 +1181,13 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
     def on_export_images_file_exists(self, filename):
         dlg = widgets.ExportImagesFileExistsDialog(self, filename)
+        if dlg.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            self.exporter.handle_existing = dlg.get_answer()
+            directory = self.exporter.dirname
+            self.progress = widgets.BeeProgressDialog(
+                f'Exporting to {directory}',
+                worker=self.worker,
+                parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self.exporter.handle_existing = dlg.get_answer()
             directory = self.exporter.dirname
@@ -1117,6 +1211,14 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         widgets.HelpDialog(self)
 
     def on_action_about(self):
+        QtWidgets.QMessageBox.about(
+            self,
+            f'About {constants.APPNAME}',
+            (f'<h2>{constants.APPNAME} {constants.VERSION}</h2>'
+             f'<p>{constants.APPNAME_FULL}</p>'
+             f'<p>{constants.COPYRIGHT}</p>'
+             f'<p><a href="{constants.WEBSITE}">'
+             f'Visit the {constants.APPNAME} website</a></p>'))
         QMessageBox.about(
             self, f'About {constants.APPNAME}',
             (f'<h2>{constants.APPNAME} {constants.VERSION}</h2>'
@@ -1128,6 +1230,24 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         widgets.DebugLogDialog(self)
 
     def on_insert_images_finished(self, new_scene, filename, errors):
+        """Callback for when loading of images is finished.
+
+        :param new_scene: True if the scene was empty before, else False
+        :param filename: Not used, for compatibility only
+        :param errors: List of filenames that couldn't be loaded
+        """
+ 
+        logger.debug('Insert images finished. Errors: %s', errors)
+        if errors:
+            errornames = [
+                f'<li>{fn}</li>' for fn in errors]
+            errornames = '<ul>%s</ul>' % '\n'.join(errornames)
+            num = len(errors)
+            msg = f'{num} image(s) could not be opened.<br/>'
+            QtWidgets.QMessageBox.warning(
+                self,
+                'Problem loading images',
+                msg + IMG_LOADING_ERROR_MSG + errornames)
         logger.debug('Insert images finished. Errors: %s', errors)
         if errors:
             errornames = [f'<li>{fn}</li>' for fn in errors]
@@ -1143,11 +1263,28 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             self.on_action_fit_scene()
 
     def do_insert_images(self, filenames, pos=None):
+        """Insert images into the scene.
+
+        :param filenames: List of filenames to insert
+        :param pos: Position to insert the images at, or None for center
+        """
         if not pos:
             pos = self.get_view_center()
         self.scene.deselect_all_items()
         self.undo_stack.beginMacro('Insert Images')
         self.worker = fileio.ThreadedIO(
+            fileio.load_images,
+            filenames,
+            self.mapToScene(pos),
+            self.scene)
+        self.worker.progress.connect(self.on_items_loaded)
+        self.worker.finished.connect(
+            partial(self.on_insert_images_finished,
+                    not self.scene.items()))
+        self.progress = widgets.BeeProgressDialog(
+            'Loading images',
+            worker=self.worker,
+            parent=self)
             fileio.load_images, filenames, self.mapToScene(pos), self.scene)
         self.worker.progress.connect(self.on_items_loaded)
         self.worker.finished.connect(partial(self.on_insert_images_finished, not self.scene.items()))
@@ -1156,6 +1293,12 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
     def on_action_insert_images(self):
         self.cancel_active_modes()
+        formats = self.get_supported_image_formats(QtGui.QImageReader)
+        logger.debug(f'Supported image types for reading: {formats}')
+        filenames, f = QtWidgets.QFileDialog.getOpenFileNames(
+            parent=self,
+            caption='Select one or more images to open',  
+            filter=f'Images ({formats})')
         formats = self.get_supported_image_formats(QImageReader)
         logger.debug(f'Supported image types for reading: {formats}')
         filenames, f = QFileDialog.getOpenFileNames(
@@ -1172,6 +1315,21 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     def on_action_copy(self):
         logger.debug('Copying to clipboard...')
         self.cancel_active_modes()
+        clipboard = QtWidgets.QApplication.clipboard()
+        items = self.scene.selectedItems(user_only=True)
+
+        # At the moment, we can only copy one image to the global
+        # clipboard. (Later, we might create an image of the whole
+        # selection for external copying.)
+        items[0].copy_to_clipboard(clipboard)
+
+        # However, we can copy all items to the internal clipboard:
+        self.scene.copy_selection_to_internal_clipboard()
+
+        # We set a marker for ourselves in the global clipboard so
+        # that we know to look up the internal clipboard when pasting:
+        clipboard.mimeData().setData(
+            'beeref/items', QtCore.QByteArray.number(len(items)))
         clipboard = QApplication.clipboard()
         items = self.scene.selectedItems(user_only=True)
 
@@ -1183,6 +1341,15 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     def on_action_paste(self):
         self.cancel_active_modes()
         logger.debug('Pasting from clipboard...')
+        clipboard = QtWidgets.QApplication.clipboard()
+        pos = self.mapToScene(self.mapFromGlobal(self.cursor().pos()))
+
+        # See if we need to look up the internal clipboard:
+        data = clipboard.mimeData().data('beeref/items')
+        logger.debug(f'Custom data in clipboard: {data}')
+        if data and self.scene.internal_clipboard:
+            # Checking that internal clipboard exists since the user
+            # may have opened a new scene since copying.
         clipboard = QApplication.clipboard()
         pos = self.mapToScene(self.mapFromGlobal(self.cursor().pos()))
 
@@ -1197,6 +1364,8 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             item = BeePixmapItem(img)
             self.undo_stack.push(commands.InsertItems(self.scene, [item], pos))
             if len(self.scene.items()) == 1:
+             if len(self.scene.items()) == 1:
+                # This is the first image in the scene
                 self.on_action_fit_scene()
             return
         text = clipboard.text()
@@ -1212,6 +1381,22 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
     def on_action_open_settings_dir(self):
         dirname = os.path.dirname(self.settings.fileName())
+        QtGui.QDesktopServices.openUrl(
+            QtCore.QUrl.fromLocalFile(dirname))
+
+    def on_selection_changed(self):
+        logger.debug('Currently selected items: %s',
+                     len(self.scene.selectedItems(user_only=True)))
+        self.actiongroup_set_enabled('active_when_selection',
+                                     self.scene.has_selection())
+        self.actiongroup_set_enabled('active_when_single_image',
+                                     self.scene.has_single_image_selection())
+
+        if self.scene.has_selection():
+            item = self.scene.selectedItems(user_only=True)[0]
+            grayscale = getattr(item, 'grayscale', False)
+            actions.actions['grayscale'].qaction.setChecked(grayscale)
+        self.viewport().repaint()
         QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(dirname))
 
     def on_selection_changed(self):
@@ -1245,10 +1430,22 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             self.viewport().unsetCursor()
 
     def recalc_scene_rect(self):
+        """Resize the scene rectangle so that it is always one view width
+        wider than all items' bounding box at each side and one view
+        width higher on top and bottom. This gives the impression of
+        an infinite canvas."""
+
         if self.previous_transform:
             return
         logger.trace('Recalculating scene rectangle...')
         try:
+            topleft = self.mapFromScene(
+                self.scene.itemsBoundingRect().topLeft())
+            topleft = self.mapToScene(QtCore.QPoint(
+                int(topleft.x() - self.size().width() / 2),
+                int(topleft.y() - self.size().height() / 2)))
+            bottomright = self.mapFromScene(
+                self.scene.itemsBoundingRect().bottomRight())
             topleft = self.mapFromScene(self.scene.itemsBoundingRect().topLeft())
             topleft = self.mapToScene(QtCore.QPoint(
                 int(topleft.x() - self.size().width() / 2),
@@ -1263,6 +1460,23 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         logger.trace('Done recalculating scene rectangle')
 
     def get_zoom_size(self, func):
+        """Calculates the size of all items' bounding box in the view's
+        coordinates.
+
+        This helps ensure that we never zoom out too much (scene
+        becomes so tiny that items become invisible) or zoom in too
+        much (causing overflow errors).
+
+        :param func: Function which takes the width and height as
+            arguments and turns it into a number, for ex. ``min`` or ``max``.
+        """
+
+        topleft = self.mapFromScene(
+            self.scene.itemsBoundingRect().topLeft())
+        bottomright = self.mapFromScene(
+            self.scene.itemsBoundingRect().bottomRight())
+        return func(bottomright.x() - topleft.x(),
+                    bottomright.y() - topleft.y())
         if self.compare_mode:
             # In compare mode, use the viewport size instead of the scene items' bounding rect
             return func(self.viewport().width(), self.viewport().height())
@@ -1293,6 +1507,107 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             logger.debug('No items in scene; ignore zoom')
             return
 
+        # We calculate where the anchor is before and after the zoom
+        # and then move the view accordingly to keep the anchor fixed
+        # We can't use QGraphicsView's AnchorUnderMouse since it
+        # uses the current cursor position while we need the initial mouse
+        # press position for zooming with Ctrl + Middle Drag
+        anchor = QtCore.QPoint(round(anchor.x()),
+                               round(anchor.y()))
+        ref_point = self.mapToScene(anchor)
+        if delta == 0:
+            return  
+        factor = 1 + abs(delta / 1000)
+        if delta > 0:
+            if self.get_zoom_size(max) < 10000000:
+                self.scale(factor, factor)
+            else:  
+                logger.debug('Maximum zoom size reached')
+                return
+        else:
+            if self.get_zoom_size(min) > 50:
+                self.scale(1/factor, 1/factor)
+            else:
+                logger.debug('Minimum zoom size reached')
+                return
+
+        self.pan(self.mapFromScene(ref_point) - anchor)
+        self.reset_previous_transform()
+
+    def wheelEvent(self, event):
+        action, inverted\
+            = self.keyboard_settings.mousewheel_action_for_event(event)
+
+        delta = event.angleDelta().y()
+        if inverted:
+            delta = delta * -1
+
+        if action == 'zoom':
+            self.zoom(delta, event.position())
+            event.accept()
+            return 
+        if action == 'pan_horizontal':
+            self.pan(QtCore.QPointF(0, 0.5 * delta))
+            event.accept()
+            return
+        if action == 'pan_vertical':
+            self.pan(QtCore.QPointF(0.5 * delta, 0))
+            event.accept()
+            return
+
+    def mousePressEvent(self, event):
+        if self.mousePressEventMainControls(event):
+            return
+
+        if self.active_mode == self.SAMPLE_COLOR_MODE:
+            if (event.button() == Qt.MouseButton.LeftButton):
+                color = self.scene.sample_color_at(
+                    self.mapToScene(event.pos()))
+                if color:
+                    name = qcolor_to_hex(color)
+                    clipboard = QtWidgets.QApplication.clipboard()
+                    clipboard.setText(name)
+                    self.scene.internal_clipboard = []
+                    msg = f'Copied color to clipboard: {name}' 
+                    logger.debug(msg)
+                    widgets.BeeNotification(self, msg)
+                else:
+                    logger.debug('No color found at %s', event.pos())
+            self.cancel_sample_color_mode()
+            event.accept()
+            return
+
+        action, inverted = self.keyboard_settings.mouse_action_for_event(event)
+
+        if action == 'zoom':
+            self.active_mode = self.ZOOM_MODE
+            self.event_start = event.position()
+            self.event_anchor = event.position()
+            self.event_inverted = inverted
+            event.accept()
+            return
+
+        if action == 'pan':
+            logger.trace('Begin pan')
+            self.active_mode = self.PAN_MODE
+            self.event_start = event.position()
+            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+            # ClosedHandCursor and OpenHandCursor don't work, but I
+            # don't know if that's only on my system or a general
+            # problem. It works with other cursors.
+            event.accept()
+            return
+
+        hscroll = self.horizontalScrollBar()
+        hscroll.setValue(int(hscroll.value() + delta.x()))
+        vscroll = self.verticalScrollBar()
+        vscroll.setValue(int(vscroll.value() + delta.y()))
+
+    def zoom(self, delta, anchor):
+        if not self.scene.items():
+            logger.debug('No items in scene; ignore zoom')
+            return
+
         anchor = QtCore.QPoint(round(anchor.x()), round(anchor.y()))
         ref_point = self.mapToScene(anchor)
         if delta == 0:
@@ -1311,6 +1626,67 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
                 logger.debug('Minimum zoom size reached')
                 return
 
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.active_mode == self.PAN_MODE:
+            self.reset_previous_transform()
+            pos = event.position()
+            self.pan(self.event_start - pos)
+            self.event_start = pos
+            event.accept()
+            return
+
+        if self.active_mode == self.ZOOM_MODE:
+            self.reset_previous_transform()
+            pos = event.position()
+            delta = (self.event_start - pos).y()
+            if self.event_inverted:
+                delta *= -1
+            self.event_start = pos
+            self.zoom(delta * 20, self.event_anchor)
+            event.accept()
+            return
+
+        if self.active_mode == self.SAMPLE_COLOR_MODE:
+            self.sample_color_widget.update(
+                event.position(),
+                self.scene.sample_color_at(self.mapToScene(event.pos())))
+            event.accept()
+            return
+
+        if self.mouseMoveEventMainControls(event):
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.active_mode == self.PAN_MODE:
+            logger.trace('End pan')
+            self.viewport().unsetCursor()
+            self.active_mode = None
+            event.accept()
+            return
+        if self.active_mode == self.ZOOM_MODE:
+            self.active_mode = None
+            event.accept()
+            return
+        if self.mouseReleaseEventMainControls(event):
+            return
+        super().mouseReleaseEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.recalc_scene_rect()
+        self.welcome_overlay.resize(self.size())
+
+    def keyPressEvent(self, event):
+        if self.keyPressEventMainControls(event):
+            return
+        if self.active_mode == self.SAMPLE_COLOR_MODE:
+            self.cancel_sample_color_mode()
+            event.accept()
+            return
+        super().keyPressEvent(event)
         self.pan(self.mapFromScene(ref_point) - anchor)
         self.reset_previous_transform()
 
