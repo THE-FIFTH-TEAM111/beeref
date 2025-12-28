@@ -510,7 +510,19 @@ actions = ActionList([
         text='&Open Settings Folder',  # 菜单显示文本：Alt+O为菜单快捷键
         callback='on_action_open_settings_dir',  # 触发方法：on_action_open_settings_dir
     ),
-
+    #新增：标签操作类动作
+    Action(
+        id='add_tag',  # 动作唯一标识：新增标签
+        text='&Add Tag...',  # 菜单显示文本：Alt+A为菜单快捷键
+        shortcuts=['Ctrl+Shift+T'],  # 默认快捷键：Ctrl+Shift+T
+        callback='on_action_add_tag',  # 触发方法：on_action_add_tag
+    ),
+    Action(
+        id='export_by_tag',  # 动作唯一标识：按标签导出
+        text='Export by &Tag...',  # 菜单显示文本：Alt+T为菜单快捷键
+        callback='on_action_export_by_tag',  # 触发方法：on_action_export_by_tag
+        group='active_when_items_in_scene',  # 可用性组：仅当场景中有项目时激活
+    ),
     # 新增：批量添加水印动作
     Action(
         id='add_watermark',

@@ -139,4 +139,11 @@ menu_structure = [
             'debuglog',
         ],
     },
+    {
+        'menu': '&Tags',
+        'items': [
+            'add_tag',
+            'export_by_tag',
+        ],
+    }
 ]

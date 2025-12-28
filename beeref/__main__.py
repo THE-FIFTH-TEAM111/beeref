@@ -81,6 +81,9 @@ class BeeRefMainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.splitter)  # 仅设置一次中央控件（分割器）
         #=======================================================
         
+        # 创建并添加菜单栏
+        self.setMenuBar(self.view.create_menubar())
+        
         self.show()
 
     def closeEvent(self, event):
@@ -165,3 +168,4 @@ def main():
 
 if __name__ == '__main__':
     main()  
+

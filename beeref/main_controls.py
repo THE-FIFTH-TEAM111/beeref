@@ -43,10 +43,19 @@ class MainControlsMixin:
         super().__init__(*args, **kwargs)  # 调用父类构造
         self.tag_cache = {}  # 初始化本地缓存
 
-    def on_action_movewin_mode(self): # 移动窗口模式槽函数，用于处理移动窗口模式的切换
-        if self.movewin_active: # 如果移动窗口模式已激活
-            # Pressing the same shortcut again should end the action
-            self.exit_movewin_mode() # 退出移动窗口模式槽函数，用于处理移动窗口模式的切换
+    def init_main_controls(self, main_window):
+        self.main_window = main_window
+        self.tag_cache = {}  # 在这里初始化缓存
+        #self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        #self.customContextMenuRequested.connect(
+        #    self.control_target.on_context_menu)
+        self.setAcceptDrops(True)
+        self.movewin_active = False
+        self.init_tag_menu()
+
+    def on_action_movewin_mode(self):
+        if self.movewin_active:
+            self.exit_movewin_mode()
         else:
             self.enter_movewin_mode()
 

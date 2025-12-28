@@ -24,7 +24,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPixmap, QKeySequence, QUndoStack, QImageReader
 from PyQt6.QtWidgets import (
     QAbstractSpinBox, QApplication, QDialog, QFileDialog, QFrame,
-    QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
     QPushButton, QSizePolicy, QSpinBox, QDoubleSpinBox, QVBoxLayout,
     QWidget, QColorDialog, QFontComboBox, QComboBox, QCheckBox, QSlider
 )
@@ -527,6 +527,44 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     ZOOM_MODE = 2
     SAMPLE_COLOR_MODE = 3
 
+    def on_context_menu(self, position):
+        """处理右键菜单事件"""
+        # 创建临时菜单
+        menu = QtWidgets.QMenu(self)
+
+        # 直接添加标签菜单，不依赖任何条件判断
+        print("直接添加标签菜单到右键菜单")
+    
+        # 获取用户右键点击位置的图像项
+        scene_pos = self.mapToScene(position)
+        items_at_pos = self.items(scene_pos)
+        img_item = None
+    
+        # 查找点击位置的图像项
+        for item in items_at_pos:
+            if hasattr(item, 'is_image') and item.is_image:
+                img_item = item
+                break
+    
+        # 如果直接点击位置没有找到图像项，检查是否点击了图像项的选择框或其他部分
+        if not img_item:
+            # 检查是否有选中的图像项
+            selected_items = [item for item in self.scene.selectedItems() 
+                             if hasattr(item, 'is_image') and item.is_image]
+            if selected_items:
+                img_item = selected_items[0]
+    
+        if img_item:
+            self.init_image_tag_menu_ui(img_item, menu)
+        else:
+            # 如果没有找到图像项，添加一个测试标签菜单
+            tag_submenu = QMenu("标签", menu)
+            tag_submenu.addAction("测试标签项")
+            menu.addMenu(tag_submenu)
+
+        # 显示菜单
+        menu.exec(self.viewport().mapToGlobal(position))
+
     def __init__(self, app, window, parent=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.app = app
@@ -538,7 +576,11 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         self.setBackgroundBrush(QBrush(QColor(*constants.COLORS['Scene:Canvas'])))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setFrameShape(QFrame.Shape.NoFrame)
-          
+        
+        # 确保上下文菜单策略正确设置
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.on_context_menu)
+        
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(100)
         self.undo_stack.canRedoChanged.connect(self.on_can_redo_changed)
@@ -554,13 +596,19 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         self.scene.selectionChanged.connect(self.on_selection_changed)
         self.scene.cursor_changed.connect(self.on_cursor_changed)
         self.scene.cursor_cleared.connect(self.on_cursor_cleared)
-        self.setScene(self.scene)    
+        self.setScene(self.scene)  
+        # 初始化主控制器
+        self.init_main_controls(window)  
 
         self.build_menu_and_actions()
         self.control_target = self
         self.init_main_controls(main_window=window)
         self.compare_mode = False 
         self.setup_compare_mode()
+        
+        # 确保所有标签相关初始化完成
+        print("BeeGraphicsView初始化完成")
+
         if commandline_args.filenames:
             fn = commandline_args.filenames[0]
             if os.path.splitext(fn)[1] == '.bee':
