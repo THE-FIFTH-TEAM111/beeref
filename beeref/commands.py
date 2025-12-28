@@ -372,6 +372,29 @@ class ToggleGrayscale(QtGui.QUndoCommand):
         for item, grayscale in zip(self.items, self.old_grayscales):
             item.grayscale = grayscale
 
+#===================新增===========================
+from beeref.tag_manager import TagManager  # 保留TagManager导入（核心依赖）
+
+class AddTagCommand(QtGui.QUndoCommand):
+    """添加标签的命令（支持撤销/重做）"""
+    def __init__(self, tag_manager: TagManager, tag_name: str, tag_group: str = "默认分组"):
+        super().__init__(f'添加标签：{tag_name}')
+        self.tag_manager = tag_manager
+        self.tag_name = tag_name
+        self.tag_group = tag_group
+        self.tag_id = -1  # 后续存储创建的标签ID
+
+    def redo(self):
+        """执行添加标签"""
+        self.tag_id = self.tag_manager.create_tag(self.tag_name, self.tag_group)
+
+    def undo(self):
+        """撤销：删除标签"""
+        cursor = self.tag_manager.tag_repo.conn.cursor()
+        # 直接写死表名（替代TagTable.TABLE_NAME），与tag_schema.py中定义的表名一致
+        cursor.execute("DELETE FROM tags WHERE tag_id = ?", (self.tag_id,))
+        self.tag_manager.tag_repo.conn.commit()
+        self.tag_manager.load_tags()  # 刷新标签列表
 # ------------------------------
 # 新增：更新图片Pixmap的撤销命令（用于水印操作）
 # ------------------------------
