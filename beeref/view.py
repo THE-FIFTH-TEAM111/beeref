@@ -527,6 +527,38 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     ZOOM_MODE = 2
     SAMPLE_COLOR_MODE = 3
 
+    def on_context_menu(self, position):
+        """处理右键菜单事件"""
+        # 创建临时菜单
+        menu = QtWidgets.QMenu(self)
+    
+        # 添加现有的上下文菜单项
+        for action in self.context_menu.actions():
+            if action.isSeparator():
+                menu.addSeparator()
+            else:
+                menu.addAction(action)
+    
+        # 检查点击位置是否有图像项
+        item_at_pos = self.itemAt(position)
+        if item_at_pos and hasattr(item_at_pos, 'is_image') and item_at_pos.is_image:
+            # 如果点击位置有图像项，添加标签菜单
+            self.init_image_tag_menu_ui(item_at_pos, menu)
+        else:
+            # 否则检查是否有选中的图像项
+            selected_items = self.scene.selectedItems(user_only=True)
+            if selected_items:
+                # 如果有选中项，添加标签子菜单
+                for item in selected_items:
+                    # 只处理图像项
+                    if hasattr(item, 'is_image') and item.is_image:
+                       # 添加标签菜单
+                        self.init_image_tag_menu_ui(item, menu)
+                        break  # 只添加一次标签菜单
+    
+        # 显示菜单
+        menu.exec(self.viewport().mapToGlobal(position))
+
     def __init__(self, app, window, parent=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.app = app
@@ -538,7 +570,10 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         self.setBackgroundBrush(QBrush(QColor(*constants.COLORS['Scene:Canvas'])))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setFrameShape(QFrame.Shape.NoFrame)
-          
+        #========================================
+        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.on_context_menu)  
+        #==========================================
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(100)
         self.undo_stack.canRedoChanged.connect(self.on_can_redo_changed)

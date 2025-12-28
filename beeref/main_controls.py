@@ -168,33 +168,6 @@ class MainControlsMixin:
         self.export_by_tag_action = self.tag_menu.addAction("按标签导出")
         self.export_by_tag_action.triggered.connect(self.on_export_by_tag)
 
-        # 2. 初始化BeeGraphicsView的图片右键菜单
-        if not hasattr(self.control_target, 'image_context_menu'):
-            self.control_target.image_context_menu = QMenu(self.control_target)
-        
-        # 3. 重写BeeGraphicsView的on_context_menu方法
-        def custom_on_context_menu(pos):
-            scene_pos = self.control_target.mapToScene(pos)
-            items = self.control_target.scene.items(scene_pos)
-            selected_items = [item for item in items if isinstance(item, BeePixmapItem)]
-            
-            if selected_items:
-                self.control_target.image_context_menu.clear()
-                # 检查是否支持标签操作
-                if hasattr(self.control_target, 'scene') and hasattr(self.control_target.scene, 'tag_manager'):
-                    self.init_image_tag_menu_ui(selected_items[0])  # 传入选中的图片
-                self.control_target.image_context_menu.addAction("删除").triggered.connect(
-                    lambda: self.control_target.scene.delete_selected())
-                self.control_target.image_context_menu.setMinimumWidth(200)
-                self.control_target.image_context_menu.exec(self.control_target.mapToGlobal(pos))
-            else:
-                global_menu = QMenu(self.control_target)
-                global_menu.addAction("清空画布").triggered.connect(
-                    lambda: self.control_target.scene.clear())
-                global_menu.exec(self.control_target.mapToGlobal(pos))
-        
-        self.control_target.on_context_menu = custom_on_context_menu
-
     def on_add_tag(self):
         """顶部菜单：新增标签"""
         dialog = TagEditDialog(self.main_window)
@@ -211,11 +184,17 @@ class MainControlsMixin:
                     logger.error(f"新增标签失败：{e}")
                     widgets.BeeNotification(self.main_window, f"新增标签失败：{str(e)}")
 
-    def init_image_tag_menu_ui(self, img_item):
+    def init_image_tag_menu_ui(self, img_item, menu):
         """图像右键菜单：标签关联核心逻辑（数据库版）"""
-        tag_submenu = QMenu("标签", self.control_target.image_context_menu)
+        # 先移除之前可能存在的标签子菜单
+        for action in menu.actions():
+            if action.text() == "标签":
+                menu.removeAction(action)
+        
+        # 添加新的标签子菜单
+        tag_submenu = QMenu("标签", menu)
         tag_submenu.setMinimumWidth(200)
-        self.control_target.image_context_menu.addMenu(tag_submenu)
+        menu.addMenu(tag_submenu)
 
         # 1. 获取标签列表
         try:
@@ -240,13 +219,41 @@ class MainControlsMixin:
             logger.error(f"获取图像标签失败：{e}")
             image_tag_ids = set()
 
+        # 定义toggle_tag_relation函数（移到循环外部）
+        def toggle_tag_relation(tag_id, tag_name, act):
+            if not image_id:
+                widgets.BeeNotification(self.main_window, "❌ 图像无有效ID，无法关联标签")
+                return
+
+            try:
+                if tag_id in image_tag_ids:
+                    # 取消关联
+                    self.control_target.scene.tag_manager.remove_tag_from_image(img_item, tag_id)
+                    image_tag_ids.remove(tag_id)
+                    act.setText(f"□ {tag_name}")
+                    widgets.BeeNotification(self.main_window, f"✅ 取消关联「{tag_name}」")
+                    logger.info(f"图像{image_id}取消标签{tag_id}关联")
+                else:
+                    # 关联标签
+                    self.control_target.scene.tag_manager.add_tags_to_image(img_item, [tag_id])
+                    image_tag_ids.add(tag_id)
+                    act.setText(f"✅ {tag_name}")
+                    widgets.BeeNotification(self.main_window, f"✅ 成功关联「{tag_name}」")
+                    logger.info(f"图像{image_id}关联标签{tag_id}成功")
+            except Exception as e:
+                logger.error(f"切换标签关联失败：{e}")
+                widgets.BeeNotification(self.main_window, f"❌ 操作失败：{str(e)}")
+
         # 4. 为每个标签绑定关联/取消逻辑
         for tag in tags:
             is_related = tag["tag_id"] in image_tag_ids
             action_text = f"{'✅ ' if is_related else '□ '}{tag['tag_name']}"
             action = tag_submenu.addAction(action_text)
 
-    # 定义toggle_tag_relation函数
+            # 使用functools.partial绑定参数
+            action.triggered.connect(partial(toggle_tag_relation, tag["tag_id"], tag["tag_name"], action))
+
+        # 定义toggle_tag_relation函数
             def toggle_tag_relation(tag_id, tag_name, act):
                 if not image_id:
                     widgets.BeeNotification(self.main_window, "❌ 图像无有效ID，无法关联标签")
@@ -271,7 +278,7 @@ class MainControlsMixin:
                     logger.error(f"切换标签关联失败：{e}")
                     widgets.BeeNotification(self.main_window, f"❌ 操作失败：{str(e)}")
 
-    # 使用functools.partial绑定参数
+        # 使用functools.partial绑定参数
             action.triggered.connect(partial(toggle_tag_relation, tag["tag_id"], tag["tag_name"], action))
 
     def on_export_by_tag(self):
