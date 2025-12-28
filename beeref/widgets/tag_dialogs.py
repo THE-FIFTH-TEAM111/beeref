@@ -52,22 +52,29 @@ class TagEditDialog(QDialog):
 
 
 class TagSelectDialog(QDialog):
-    """标签选择对话框（用于按标签导出/筛选）"""
-    def __init__(self, parent=None, tags: List[Dict] = None):
+    """标签选择对话框（用于添加标签或按标签导出）"""
+    def __init__(self, parent=None, tags: List[Dict] = None, purpose: str = "add"):
         super().__init__(parent)
         self.setWindowTitle("选择标签")
         self.setModal(True)
         self.setFixedSize(300, 200)
         self.tags = tags or []  # 标签列表：[{"tag_id": 1, "tag_name": "人像"}, ...]
         self.selected_tag_id = None  # 选中的标签ID
+        self.purpose = purpose  # 用途："add"（添加标签）或 "export"（导出）
         self.init_ui()
 
     def init_ui(self):
         """初始化选择对话框UI"""
         layout = QVBoxLayout(self)
 
+        # 根据用途设置不同的提示文字
+        if self.purpose == "export":
+            prompt_text = "请选择要导出的标签："
+        else:  # 默认是添加标签
+            prompt_text = "请选择要关联的标签："
+        
         # 标题提示
-        layout.addWidget(QLabel("请选择要导出的标签："))
+        layout.addWidget(QLabel(prompt_text))
 
         # 标签列表
         self.tag_list = QListWidget()

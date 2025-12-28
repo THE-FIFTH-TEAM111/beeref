@@ -24,7 +24,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPixmap, QKeySequence, QUndoStack, QImageReader
 from PyQt6.QtWidgets import (
     QAbstractSpinBox, QApplication, QDialog, QFileDialog, QFrame,
-    QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
     QPushButton, QSizePolicy, QSpinBox, QDoubleSpinBox, QVBoxLayout,
     QWidget, QColorDialog, QFontComboBox, QComboBox, QCheckBox, QSlider
 )
@@ -531,31 +531,37 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         """处理右键菜单事件"""
         # 创建临时菜单
         menu = QtWidgets.QMenu(self)
+
+        # 直接添加标签菜单，不依赖任何条件判断
+        print("直接添加标签菜单到右键菜单")
     
-        # 添加现有的上下文菜单项
-        for action in self.context_menu.actions():
-            if action.isSeparator():
-                menu.addSeparator()
-            else:
-                menu.addAction(action)
+        # 获取用户右键点击位置的图像项
+        scene_pos = self.mapToScene(position)
+        items_at_pos = self.items(scene_pos)
+        img_item = None
     
-        # 检查点击位置是否有图像项
-        item_at_pos = self.itemAt(position)
-        if item_at_pos and hasattr(item_at_pos, 'is_image') and item_at_pos.is_image:
-            # 如果点击位置有图像项，添加标签菜单
-            self.init_image_tag_menu_ui(item_at_pos, menu)
-        else:
-            # 否则检查是否有选中的图像项
-            selected_items = self.scene.selectedItems(user_only=True)
+        # 查找点击位置的图像项
+        for item in items_at_pos:
+            if hasattr(item, 'is_image') and item.is_image:
+                img_item = item
+                break
+    
+        # 如果直接点击位置没有找到图像项，检查是否点击了图像项的选择框或其他部分
+        if not img_item:
+            # 检查是否有选中的图像项
+            selected_items = [item for item in self.scene.selectedItems() 
+                             if hasattr(item, 'is_image') and item.is_image]
             if selected_items:
-                # 如果有选中项，添加标签子菜单
-                for item in selected_items:
-                    # 只处理图像项
-                    if hasattr(item, 'is_image') and item.is_image:
-                       # 添加标签菜单
-                        self.init_image_tag_menu_ui(item, menu)
-                        break  # 只添加一次标签菜单
+                img_item = selected_items[0]
     
+        if img_item:
+            self.init_image_tag_menu_ui(img_item, menu)
+        else:
+            # 如果没有找到图像项，添加一个测试标签菜单
+            tag_submenu = QMenu("标签", menu)
+            tag_submenu.addAction("测试标签项")
+            menu.addMenu(tag_submenu)
+
         # 显示菜单
         menu.exec(self.viewport().mapToGlobal(position))
 
@@ -570,10 +576,11 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         self.setBackgroundBrush(QBrush(QColor(*constants.COLORS['Scene:Canvas'])))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setFrameShape(QFrame.Shape.NoFrame)
-        #========================================
-        self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.on_context_menu)  
-        #==========================================
+        
+        # 确保上下文菜单策略正确设置
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.on_context_menu)
+        
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(100)
         self.undo_stack.canRedoChanged.connect(self.on_can_redo_changed)
@@ -589,13 +596,19 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         self.scene.selectionChanged.connect(self.on_selection_changed)
         self.scene.cursor_changed.connect(self.on_cursor_changed)
         self.scene.cursor_cleared.connect(self.on_cursor_cleared)
-        self.setScene(self.scene)    
+        self.setScene(self.scene)  
+        # 初始化主控制器
+        self.init_main_controls(window)  
 
         self.build_menu_and_actions()
         self.control_target = self
         self.init_main_controls(main_window=window)
         self.compare_mode = False 
         self.setup_compare_mode()
+        
+        # 确保所有标签相关初始化完成
+        print("BeeGraphicsView初始化完成")
+
         if commandline_args.filenames:
             fn = commandline_args.filenames[0]
             if os.path.splitext(fn)[1] == '.bee':
@@ -1591,6 +1604,79 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             self.draw_comparison_grid()
         else:
             super().paintEvent(event)
+
+    def on_action_add_tag(self):
+        """为选中的图像添加标签"""
+        # 获取当前选中的图像项
+        selected_items = self.scene.selectedItems()
+        pixmap_items = [item for item in selected_items if hasattr(item, 'save_id') and item.save_id is not None]
+    
+        if not pixmap_items:
+            QtWidgets.QMessageBox.information(self, "添加标签", "请先选择一个或多个图像")
+            return
+    
+        # 获取所有标签
+        all_tags = self.scene.tag_manager.get_all_tags()
+    
+        if not all_tags:
+            QtWidgets.QMessageBox.information(self, "添加标签", "当前没有可用的标签，请先创建标签")
+            return
+    
+        # 弹出标签选择对话框
+        from beeref.widgets.tag_dialogs import TagSelectDialog
+        dialog = TagSelectDialog(self, all_tags)
+    
+        if dialog.exec():
+            selected_tag_id = dialog.get_selected_tag_id()
+            if selected_tag_id:
+                # 为所有选中的图像项添加标签
+                self.scene.tag_manager.add_tags_to_images(pixmap_items, [selected_tag_id])
+                QtWidgets.QMessageBox.information(self, "添加标签", f"已成功为{len(pixmap_items)}个图像添加标签")
+
+    def on_action_export_by_tag(self):
+        """按标签导出图像"""
+        # 获取所有标签
+        all_tags = self.scene.tag_manager.get_all_tags()
+    
+        if not all_tags:
+            QtWidgets.QMessageBox.information(self, "按标签导出", "当前没有可用的标签，请先创建标签")
+            return
+    
+        # 弹出标签选择对话框，指定 purpose="export"
+        from beeref.widgets.tag_dialogs import TagSelectDialog
+        dialog = TagSelectDialog(self, all_tags, purpose="export")  # 这里添加 purpose 参数
+    
+        if dialog.exec():
+            selected_tag_id = dialog.get_selected_tag_id()
+            if selected_tag_id:
+                # 选择导出目录
+                export_path = QtWidgets.QFileDialog.getExistingDirectory(
+                    self, "选择导出目录", "", QtWidgets.QFileDialog.Option.ShowDirsOnly
+                )
+            
+                if export_path:
+                    # 设置导出参数
+                    export_params = {
+                        "tag_id": selected_tag_id,
+                        "export_path": export_path,
+                        "format": "PNG",  # 默认导出为PNG格式
+                        "quality": 90,  # 默认质量90%
+                        "grayscale": False,  # 默认不转为灰度图
+                        "crop": False  # 默认不裁剪
+                    }
+                
+                    # 执行导出
+                    success = self.scene.tag_manager.export_tagged_images(
+                        export_params['tag_id'],
+                        export_params['export_path'],
+                        export_params
+                    )
+                
+                    if success:
+                        QtWidgets.QMessageBox.information(self, "导出成功", f"按标签导出完成，已导出到 {export_path}")
+                    else:
+                        QtWidgets.QMessageBox.warning(self, "导出失败", "没有找到符合条件的图像或导出过程中发生错误")
+
 class BeeView(QtWidgets.QGraphicsView):
     # ... 现有代码 ...
     

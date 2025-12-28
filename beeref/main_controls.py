@@ -46,9 +46,9 @@ class MainControlsMixin:
     def init_main_controls(self, main_window):
         self.main_window = main_window
         self.tag_cache = {}  # 在这里初始化缓存
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(
-            self.control_target.on_context_menu)
+        #self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        #self.customContextMenuRequested.connect(
+        #    self.control_target.on_context_menu)
         self.setAcceptDrops(True)
         self.movewin_active = False
         self.init_tag_menu()
@@ -198,7 +198,12 @@ class MainControlsMixin:
 
         # 1. 获取标签列表
         try:
-            tags = self.control_target.scene.tag_manager.get_all_tags()
+            # 确保tag_manager存在
+            if not hasattr(self.scene, 'tag_manager'):
+                tag_submenu.addAction("标签管理器未初始化").setEnabled(False)
+                return
+                
+            tags = self.scene.tag_manager.get_all_tags()
             if not tags:
                 tag_submenu.addAction("暂无标签").setEnabled(False)
                 return
@@ -219,7 +224,7 @@ class MainControlsMixin:
             logger.error(f"获取图像标签失败：{e}")
             image_tag_ids = set()
 
-        # 定义toggle_tag_relation函数（移到循环外部）
+        # 定义toggle_tag_relation函数
         def toggle_tag_relation(tag_id, tag_name, act):
             if not image_id:
                 widgets.BeeNotification(self.main_window, "❌ 图像无有效ID，无法关联标签")
@@ -251,34 +256,6 @@ class MainControlsMixin:
             action = tag_submenu.addAction(action_text)
 
             # 使用functools.partial绑定参数
-            action.triggered.connect(partial(toggle_tag_relation, tag["tag_id"], tag["tag_name"], action))
-
-        # 定义toggle_tag_relation函数
-            def toggle_tag_relation(tag_id, tag_name, act):
-                if not image_id:
-                    widgets.BeeNotification(self.main_window, "❌ 图像无有效ID，无法关联标签")
-                    return
-
-                try:
-                    if tag_id in image_tag_ids:
-                # 取消关联
-                        self.control_target.scene.tag_manager.remove_tag_from_image(img_item, tag_id)
-                        image_tag_ids.remove(tag_id)
-                        act.setText(f"□ {tag_name}")
-                        widgets.BeeNotification(self.main_window, f"✅ 取消关联「{tag_name}」")
-                        logger.info(f"图像{image_id}取消标签{tag_id}关联")
-                    else:
-                # 关联标签
-                        self.control_target.scene.tag_manager.add_tags_to_image(img_item, [tag_id])
-                        image_tag_ids.add(tag_id)
-                        act.setText(f"✅ {tag_name}")
-                        widgets.BeeNotification(self.main_window, f"✅ 成功关联「{tag_name}」")
-                        logger.info(f"图像{image_id}关联标签{tag_id}成功")
-                except Exception as e:
-                    logger.error(f"切换标签关联失败：{e}")
-                    widgets.BeeNotification(self.main_window, f"❌ 操作失败：{str(e)}")
-
-        # 使用functools.partial绑定参数
             action.triggered.connect(partial(toggle_tag_relation, tag["tag_id"], tag["tag_name"], action))
 
     def on_export_by_tag(self):
