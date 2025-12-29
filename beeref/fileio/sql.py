@@ -118,14 +118,19 @@ class SQLiteIO:
 
     # 建立数据库连接
     def _establish_connection(self):
+        # 确保目标目录存在
+        dirname = os.path.dirname(self.filename)
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname, exist_ok=True)
+        
         # 如果需要创建新文件且文件已存在，则删除现有文件
-        if (self.create_new                             
-                and not self.readonly                   
+        if (self.create_new                              
+                and not self.readonly                    
                 and os.path.exists(self.filename)):    
-            os.remove(self.filename)                   
+            os.remove(self.filename)                    
 
         # 如果创建新文件，清除场景中所有项目的保存I
-        if self.create_new:                             
+        if self.create_new:                              
             self.scene.clear_save_ids()                 
         # 将文件路径转换为URI格式，确保跨平台兼容性
         uri = pathlib.Path(self.filename).resolve().as_uri()
