@@ -523,6 +523,12 @@ actions = ActionList([
         callback='on_action_export_by_tag',  # 触发方法：on_action_export_by_tag
         group='active_when_items_in_scene',  # 可用性组：仅当场景中有项目时激活
     ),
+    Action(
+        id='export_favorites',  # 动作唯一标识：导出收藏
+        text='Export &Favorites...',  # 菜单显示文本：Alt+F为菜单快捷键
+        callback='on_action_export_favorites',  # 触发方法：on_action_export_favorites
+        group='active_when_items_in_scene',  # 可用性组：仅当场景中有项目时激活
+    ),
     # 新增：批量添加水印动作
     Action(
         id='add_watermark',

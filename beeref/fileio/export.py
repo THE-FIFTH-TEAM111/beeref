@@ -348,22 +348,34 @@ class SceneToSVGExporter(SceneExporterBase):
 
 # 图像到目录导出器
 class ImagesToDirectoryExporter(ExporterBase):
-    """Export all images to a folder.
+    """Export images to a folder.
 
     Not registered in the registry as it is accessed via its own menu entry,
     not auto-detected by file extension.
     """
 
     #初始化图像到目录导出器
-    def __init__(self, scene, dirname):
+    def __init__(self, scene, dirname, only_favorites=False):
         self.scene = scene                                              # 场景对象
         self.dirname = dirname                                          # 目录名
         self.items = list(self.scene.items_by_type(BeePixmapItem.TYPE)) # 获取所有像素图项的列表
+        
+        # 如果只导出收藏项，则过滤列表
+        if only_favorites:
+            self.items = [item for item in self.items if hasattr(item, 'favorite') and item.favorite]
+            
         self.max_save_id = 0                                            # 最大保存ID
         #查找当前最大保存ID
         for item in self.items:                                         # 遍历所有像素图项
             if item.save_id:                                            # 若项有保存ID
-                self.max_save_id = max(self.max_save_id, item.save_id)  # 更新最大保存ID为项的保存ID和当前最大保存ID中的较大值
+                # 由于save_id是字符串类型，我们需要转换为整数进行比较
+                # 首先提取数字部分，如果转换失败则跳过
+                try:
+                    save_id_num = int(item.save_id)
+                    self.max_save_id = max(self.max_save_id, save_id_num)
+                except (ValueError, TypeError):
+                    # 如果save_id不是有效的整数，继续使用当前的max_save_id
+                    pass
         self.num_total = len(self.items)        # 总项数
         self.start_from = 0                     # 起始索引
         self.handle_existing = None             # 处理已存在文件的方式，初始值为None
@@ -555,4 +567,5 @@ class SceneToPDFExporter(SceneExporterBase):
         logger.debug('PDF export finished')               # 记录导出完成的信息
         self.emit_progress(worker, 1)                     # 发送导出进度信号
         self.emit_finished(worker, filename, [])          # 发送导出完成信号
+
 

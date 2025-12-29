@@ -1155,6 +1155,20 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         self.progress = widgets.BeeProgressDialog(f'Exporting to {directory}', worker=self.worker, parent=self)
         self.worker.start()
 
+    def on_action_export_favorites(self):
+        directory = os.path.dirname(self.filename) if self.filename else None
+        directory = QFileDialog.getExistingDirectory(parent=self, caption='Export Favorite Images', directory=directory)
+        if not directory:
+            return
+
+        logger.debug(f'Got export directory {directory} for favorites')
+        self.exporter = ImagesToDirectoryExporter(self.scene, directory, only_favorites=True)
+        self.worker = fileio.ThreadedIO(self.exporter.export)
+        self.worker.user_input_required.connect(self.on_export_images_file_exists)
+        self.worker.finished.connect(self.on_export_finished)
+        self.progress = widgets.BeeProgressDialog(f'Exporting favorites to {directory}', worker=self.worker, parent=self)
+        self.worker.start()
+
     def on_export_images_file_exists(self, filename):
         dlg = widgets.ExportImagesFileExistsDialog(self, filename)
         if dlg.exec() == QDialog.DialogCode.Accepted:
