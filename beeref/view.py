@@ -1707,11 +1707,8 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
                     else:
                         QtWidgets.QMessageBox.warning(self, "导出失败", "没有找到符合条件的图像或导出过程中发生错误")
 
-class BeeView(QtWidgets.QGraphicsView):
-    # ... 现有代码 ...
-    
+class BeeView(QtWidgets.QGraphicsView):   
     def __init__(self, *args, **kwargs):
-        # ... 现有初始化代码 ...
         self.compare_mode = False
         self.compare_items = []
         self.setupCompareMode()
@@ -1826,7 +1823,7 @@ class BeeView(QtWidgets.QGraphicsView):
         # 清除现有收藏夹菜单内容
         self._clear_favorites_menu()
 
-        # 获取所有收藏项 - 修复：获取所有场景项目而不仅仅是选中项
+        # 获取所有收藏项 
         favorite_items = [item for item in self.scene.items(user_only=True)
                         if hasattr(item, 'favorite') and item.favorite]
 
