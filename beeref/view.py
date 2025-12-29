@@ -683,30 +683,38 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     
             # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
             pixmap = item.pixmap()
+
+             # 计算图像在单元格内的最佳缩放比例
+            pixmap_ratio = pixmap.width() / pixmap.height()
+            cell_ratio = cell_width / cell_height
+        
+            if pixmap_ratio > cell_ratio:
+                # 图像更宽，按宽度缩放
+                scaled_width = cell_width
+                scaled_height = scaled_width / pixmap_ratio
+            else:
+                # 图像更高，按高度缩放
+                scaled_height = cell_height
+                scaled_width = scaled_height * pixmap_ratio
+
+            # 应用当前视图的缩放比例
+            scaled_width *= scale_factor
+            scaled_height *= scale_factor
+            
             # 缩放图像以适应网格单元格，并考虑当前视图的缩放比例
             scaled_pixmap = pixmap.scaled(
-                int(cell_width / scale_factor), 
-                int(cell_height / scale_factor),
+                int(scaled_width), 
+                int(scaled_height),
                 QtCore.Qt.AspectRatioMode.KeepAspectRatio,
                 QtCore.Qt.TransformationMode.SmoothTransformation
             )
     
             # 居中绘制
-            dx = (cell_width - scaled_pixmap.width() * scale_factor) // 2
-            dy = (cell_height - scaled_pixmap.height() * scale_factor) // 2
+            dx = (cell_width - scaled_width ) // 2
+            dy = (cell_height - scaled_height ) // 2
         
-            # 保存当前绘制状态
-            painter.save()
-        
-            # 应用缩放变换
-            painter.translate(x + dx, y + dy)
-            painter.scale(scale_factor, scale_factor)
-        
-            # 绘制缩放后的图像
-            painter.drawPixmap(0, 0, scaled_pixmap)
-        
-            # 恢复绘制状态
-            painter.restore()
+            # 绘制图像
+            painter.drawPixmap(int(x + dx), int(y + dy), scaled_pixmap)
         
             # 绘制边框
             painter.setPen(QtGui.QPen(QtGui.QColor(255, 223, 0), 2))
@@ -1376,7 +1384,7 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             self.pan(QtCore.QPointF(0, delta * 0.1))
             event.accept()
             return
-
+        super().wheelEvent(event)
     def mousePressEvent(self, event):
         if self.mousePressEventMainControls(event):
             return
