@@ -105,9 +105,9 @@ class SceneExporterBase(ExporterBase):
         logger.trace(f'Items bounding rect: {rect}')                 # 记录场景中所有项的边界矩形
         size = QtCore.QSize(int(rect.width()), int(rect.height()))   # 计算导出图像的大小，取项边界矩形的宽度和高度
         logger.trace(f'Export size without margins: {size}')         # 记录导出图像的大小，不包含边距
-        self.margin = max(size.width(), size.height()) * 0.03        # 计算导出图像的边距，取宽度和高度的较大值乘以0.03
-        self.default_size = size.grownBy(                            # 计算导出图像的大小，包含边距
-            QtCore.QMargins(*([int(self.margin)] * 4)))              # 计算导出图像的大小，包含边距
+        # 将边距设置为0，移除固定边距
+        self.margin = 0                                              # 设置导出图像的边距为0
+        self.default_size = size                                     # 直接使用没有边距的大小作为默认大小
         logger.debug(f'Default export margin: {self.margin}')        # 记录导出图像的边距
         logger.debug(f'Default export size with margins: {self.default_size}')# 记录导出图像的大小，包含边距
 
@@ -138,19 +138,19 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
     # 场景导出器基类的渲染方法，用于将场景渲染为图像
     def render_to_image(self):
         logger.debug(f'Final export size: {self.size}')                         # 记录最终导出图像的大小
-        # 按比例调整边距
-        margin = self.margin * self.size.width() / self.default_size.width()    # 计算最终导出图像的边距，取宽度和高度的较大值乘以0.03
+        # 边距已设为0，无需再调整
+        margin = 0                                                              # 边距设为0
         logger.debug(f'Final export margin: {margin}')                          # 记录最终导出图像的边距
 
         image = QtGui.QImage(self.size, QtGui.QImage.Format.Format_RGB32)       # 创建导出图像，大小为最终导出大小，格式为RGB32
         image.fill(QtGui.QColor(*constants.COLORS['Scene:Canvas']))             # 用画布颜色作为导出图像的背景颜色
         painter = QtGui.QPainter(image)                                         # 创建画家对象
-        # 定义目标矩形
+        # 定义目标矩形，不再使用边距
         target_rect = QtCore.QRectF(
-            margin,                              # 取导出图像的边距作为偏移量
-            margin,                              # 取导出图像的边距作为偏移量
-            self.size.width() - 2 * margin,      # 取导出图像的宽度减去2倍边距作为矩形宽度
-            self.size.height() - 2 * margin)     # 取导出图像的高度减去2倍边距作为矩形高度
+            0,                                                              # 左边界为0
+            0,                                                              # 上边界为0
+            self.size.width(),                                               # 宽度为导出图像的宽度
+            self.size.height())                                             # 高度为导出图像的高度
         logger.trace(f'Final export target_rect: {target_rect}')    # 记录最终导出图像的目标矩形
         self.scene.render(painter,                                  # 渲染场景到导出图像的绘图器
                           source=self.scene.itemsBoundingRect(),    # 获取场景中所有项的边界矩形
@@ -180,7 +180,7 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
         self.emit_progress(worker, 1)                 # 发送导出进度信号，参数为导出器实例和导出进度值1
         self.emit_finished(worker, filename, [])      # 发送导出完成信号，参数为导出器实例、导出文件名和空列表
 
-# 注册场景到SVG，
+# 注册场景到SVG
 @register_exporter
 class SceneToSVGExporter(SceneExporterBase):
 
@@ -400,3 +400,59 @@ class ImagesToDirectoryExporter(ExporterBase):
             self.emit_progress(worker, i)              # 发送进度信号，参数为当前项的索引，记录当前位置
 
         self.emit_finished(worker, self.dirname, [])   # 发送导出任务完成信号，参数为目录名和空列表
+
+# 注册场景到PDF
+@register_exporter
+class SceneToPDFExporter(SceneToPixmapExporter):
+    
+    TYPE = 'pdf'                        # 导出类型为PDF
+    
+    # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
+    def get_user_input(self, parent):
+        self.size = self.default_size   # 使用默认导出大小
+        return True                     # 返回True表示用户输入成功
+    
+    # 导出场景到PDF文件
+    def export(self, filename, worker=None):
+        logger.debug(f'Exporting scene to PDF: {filename}')      # 记录导出场景的文件名
+        self.emit_begin_processing(worker, 1)                   # 发送导出开始信号
+        
+        # 若导出器实例存在且取消导出标志为True
+        if worker and worker.canceled:
+            logger.debug('Export canceled')                 # 记录导出被取消的信息
+            self.emit_finished(worker, filename, [])        # 发送导出完成信号
+            return                                          # 若导出被取消，则返回
+        
+        # 创建PDF文档
+        document = QtGui.QPdfWriter(filename)
+        
+        # 设置页面大小与默认大小一致
+        document.setPageSize(QtGui.QPageSize(QtCore.QSizeF(self.size.width(), self.size.height()), QtGui.QPageSize.Unit.Point))
+        
+        # 设置页面边距
+        document.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))
+        
+        # 使用QPainter绘制PDF
+        painter = QtGui.QPainter(document)
+        
+        # 边距已设为0，无需再调整
+        margin = 0
+        
+        # 定义目标矩形，不再使用边距
+        target_rect = QtCore.QRectF(
+            0,                                                              # 左边界为0
+            0,                                                              # 上边界为0
+            self.size.width(),                                               # 宽度为导出图像的宽度
+            self.size.height())                                             # 高度为导出图像的高度
+        
+        # 直接将场景渲染到PDF，确保内容居中显示
+        self.scene.render(painter, 
+                          source=self.scene.itemsBoundingRect(), 
+                          target=target_rect)
+        
+        # 结束绘制
+        painter.end()
+        
+        logger.debug('PDF export finished')               # 记录导出完成的信息
+        self.emit_progress(worker, 1)                     # 发送导出进度信号
+        self.emit_finished(worker, filename, [])          # 发送导出完成信号

@@ -1081,9 +1081,16 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
     def on_action_save_as(self):
         self.cancel_active_modes()
         directory = os.path.dirname(self.filename) if self.filename else None
-        filename, f = QFileDialog.getSaveFileName(
-            parent=self, caption='Save file', directory=directory, filter=f'{constants.APPNAME} File (*.bee)')
+        filename, formatstr = QFileDialog.getSaveFileName(
+            parent=self, caption='Save file', directory=directory, filter=";;".join((f"{constants.APPNAME} File (*.bee)", "PDF (*.pdf)")))
         if filename:
+            name, ext = os.path.splitext(filename)
+            if not ext:
+                ext = get_file_extension_from_format(formatstr)
+                filename = f"{filename}.{ext}"
+            if ext.lower() == ".pdf":
+                self.on_action_export_scene(filename=filename)
+                return
             self.do_save(filename, create_new=True)
 
     def on_action_save(self):
@@ -1093,11 +1100,12 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
         else:
             self.do_save(self.filename, create_new=False)
 
-    def on_action_export_scene(self):
+    def on_action_export_scene(self, filename=None):
         directory = os.path.dirname(self.filename) if self.filename else None
-        filename, formatstr = QFileDialog.getSaveFileName(
-            parent=self, caption='Export Scene to Image', directory=directory,
-            filter=';;'.join(('Image Files (*.png *.jpg *.jpeg *.svg)', 'PNG (*.png)', 'JPEG (*.jpg *.jpeg)', 'SVG (*.svg)')))
+        if not filename:
+            filename, formatstr = QFileDialog.getSaveFileName(
+                parent=self, caption='Export Scene to Image', directory=directory,
+                filter=';;'.join(('Image Files (*.png *.jpg *.jpeg *.svg *.pdf)', 'PNG (*.png)', 'JPEG (*.jpg *.jpeg)', 'SVG (*.svg)', 'PDF (*.pdf)')))
 
         if not filename:
             return
@@ -1108,7 +1116,7 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
             filename = f'{filename}.{ext}'
         logger.debug(f'Got export filename {filename}')
 
-        exporter_cls = exporter_registry[ext]
+        exporter_cls = exporter_registry[ext.lstrip(".")]
         exporter = exporter_cls(self.scene)
         if not exporter.get_user_input(self):
             return

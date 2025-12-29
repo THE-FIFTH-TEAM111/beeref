@@ -43,8 +43,8 @@ def test_scene_to_pixmap_exporter_default_size_and_margin(view):
 
     exporter = SceneToPixmapExporter(view.scene)
     assert view.scene.sceneRect().size().toSize() == QtCore.QSize(300, 100)
-    assert (exporter.margin - 9) < 0.000001
-    assert exporter.default_size == QtCore.QSize(318, 118)
+    assert exporter.margin == 0  # 边距现在为0
+    assert exporter.default_size == QtCore.QSize(300, 100)  # 默认大小与场景大小一致
 
 
 def test_scene_to_pixmap_exporter_default_size_and_margin_when_selection(view):
@@ -61,8 +61,8 @@ def test_scene_to_pixmap_exporter_default_size_and_margin_when_selection(view):
 
     exporter = SceneToPixmapExporter(view.scene)
     assert view.scene.sceneRect().size().toSize() == QtCore.QSize(300, 100)
-    assert (exporter.margin - 9) < 0.000001
-    assert exporter.default_size == QtCore.QSize(318, 118)
+    assert exporter.margin == 0  # 边距现在为0
+    assert exporter.default_size == QtCore.QSize(300, 100)  # 默认大小与场景大小一致
 
 
 @patch('beeref.scene.BeeGraphicsScene.render')
@@ -71,8 +71,8 @@ def test_scene_to_pixmap_exporter_render_sets_margins(render_mock, view):
         QtGui.QImage(1000, 1200, QtGui.QImage.Format.Format_RGB32))
     view.scene.addItem(item)
     exporter = SceneToPixmapExporter(view.scene)
-    assert exporter.margin == 36
-    assert exporter.default_size == QtCore.QSize(1072, 1272)
+    assert exporter.margin == 0  # 边距现在为0
+    assert exporter.default_size == QtCore.QSize(1000, 1200)  # 默认大小与场景大小一致
 
     exporter.size = QtCore.QSize(536, 636)
     exporter.render_to_image()
@@ -80,7 +80,7 @@ def test_scene_to_pixmap_exporter_render_sets_margins(render_mock, view):
     render_mock.assert_called_once_with(
         ANY,
         source=QtCore.QRectF(0, 0, 1000, 1200),
-        target=QtCore.QRectF(18, 18, 500, 600))
+        target=QtCore.QRectF(0, 0, 536, 636))  # 目标矩形不再有边距
 
 
 def test_scene_to_pixmap_exporter_render_renders_scene(view):
@@ -89,12 +89,12 @@ def test_scene_to_pixmap_exporter_render_renders_scene(view):
     item = BeePixmapItem(item_img)
     view.scene.addItem(item)
     exporter = SceneToPixmapExporter(view.scene)
-    assert exporter.margin == 36
-    assert exporter.default_size == QtCore.QSize(1072, 1272)
+    assert exporter.margin == 0  # 边距现在为0
+    assert exporter.default_size == QtCore.QSize(1000, 1200)  # 默认大小与场景大小一致
 
     exporter.size = QtCore.QSize(536, 636)
     image = exporter.render_to_image()
-    assert image.pixel(1, 1) == QtGui.QColor(*constants.COLORS['Scene:Canvas'])
+    assert image.pixel(0, 0) == QtGui.QColor(11, 22, 33)  # 图像左上角现在是内容，不再是画布颜色
     assert image.pixel(100, 100) == QtGui.QColor(11, 22, 33)
 
 
@@ -178,4 +178,4 @@ def test_scene_to_pixmap_exporter_export_when_file_not_writeable_with_worker(
     worker.begin_processing.emit.assert_called_once_with(1)
     worker.progress.emit.assert_not_called()
     worker.finished.emit.assert_called_once_with(
-        filename, ['Error writing file'])
+        filename, ['Error writing file'])

@@ -25,7 +25,7 @@ def test_scene_to_svg_exporter_get_user_input(view):
     exporter = SceneToSVGExporter(view.scene)
     value = exporter.get_user_input(None)
     assert value is True
-    assert exporter.size == QtCore.QSize(318, 118)
+    assert exporter.size == QtCore.QSize(300, 100)  # 现在大小与场景大小一致，无边距
 
 
 def test_scene_to_svg_exporter_render_pixmap_items(view):
