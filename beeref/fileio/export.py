@@ -117,52 +117,78 @@ class SceneExporterBase(ExporterBase):
 class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类，用于定义场景导出器的通用方法
 
     TYPE = ExporterRegistry.DEFAULT_TYPE               # 设置为默认导出类型
+    
+    # 支持的图像格式
+    IMAGE_FORMATS = ['png', 'jpg', 'jpeg']
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
-    def get_user_input(self, parent):
-        """Ask user for final export size."""          # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
-
-        # 创建导出对话框，让用户输入最终导出尺寸
-        dialog = widgets.SceneToPixmapExporterDialog(       # 创建场景导出器对话框实例
-            parent=parent,                                  # 场景导出器对话框的父窗口
-            default_size=self.default_size,                 # 场景导出器对话框的默认导出大小
+    def get_user_input(self, parent, export_format='png'):
+        """Ask user for final export size and format-specific parameters."""
+        
+        # 从文件名获取导出格式
+        self.export_format = export_format.lower().removeprefix('.')
+        
+        # 创建新的导出对话框，支持格式特定参数
+        dialog = widgets.SceneExporterDialog(
+            parent=parent,
+            default_size=self.default_size,
+            export_format=self.export_format
         )
-        if dialog.exec():                                   # 若场景导出器对话框执行成功
-            size = dialog.value()                           # 获取场景导出器对话框中用户输入的导出大小
-            logger.debug(f'Got export size {size}')         # 记录用户输入的导出大小
-            self.size = size                                # 将用户输入的导出大小赋值给场景导出器基类的属性
-            return True                                     # 返回True表示用户输入成功
-        else:                                               # 若场景导出器对话框执行失败
-            return False                                    # 返回False表示用户输入失败
+        
+        if dialog.exec():
+            config = dialog.value()
+            logger.debug(f'Got export config: {config}')
+            self.size = config['size']
+            self.export_config = config
+            return True
+        else:
+            return False
 
     # 场景导出器基类的渲染方法，用于将场景渲染为图像
     def render_to_image(self):
-        logger.debug(f'Final export size: {self.size}')                         # 记录最终导出图像的大小
-        # 边距已设为0，无需再调整
-        margin = 0                                                              # 边距设为0
-        logger.debug(f'Final export margin: {margin}')                          # 记录最终导出图像的边距
+        logger.debug(f'Final export size: {self.size}')
+        margin = 0
+        logger.debug(f'Final export margin: {margin}')
 
-        image = QtGui.QImage(self.size, QtGui.QImage.Format.Format_RGB32)       # 创建导出图像，大小为最终导出大小，格式为RGB32
-        image.fill(QtGui.QColor(*constants.COLORS['Scene:Canvas']))             # 用画布颜色作为导出图像的背景颜色
-        painter = QtGui.QPainter(image)                                         # 创建画家对象
-        # 定义目标矩形，不再使用边距
+        image = QtGui.QImage(self.size, QtGui.QImage.Format.Format_RGB32)
+        image.fill(QtGui.QColor(*constants.COLORS['Scene:Canvas']))
+        painter = QtGui.QPainter(image)
+        
+        # 获取场景内容的实际边界（源矩形）
+        source_rect = self.scene.itemsBoundingRect()
+        # 计算内容在页面中的居中偏移量
+        x_offset = (self.size.width() - source_rect.width()) / 2
+        y_offset = (self.size.height() - source_rect.height()) / 2
+        
+        # 定义居中的目标矩形
         target_rect = QtCore.QRectF(
-            0,                                                              # 左边界为0
-            0,                                                              # 上边界为0
-            self.size.width(),                                               # 宽度为导出图像的宽度
-            self.size.height())                                             # 高度为导出图像的高度
-        logger.trace(f'Final export target_rect: {target_rect}')    # 记录最终导出图像的目标矩形
-        self.scene.render(painter,                                  # 渲染场景到导出图像的绘图器
-                          source=self.scene.itemsBoundingRect(),    # 获取场景中所有项的边界矩形
-                          target=target_rect)                       # 将场景渲染到最终导出图像的目标矩形
-        painter.end()           # 结束导出图像的绘图器
-        return image            # 返回导出图像
+            x_offset,  # 水平居中偏移
+            y_offset,  # 垂直居中偏移
+            source_rect.width(),  # 使用内容实际宽度
+            source_rect.height()  # 使用内容实际高度
+        )
+        logger.trace(f'Final export target_rect (centered): {target_rect}')
+
+        self.scene.render(
+            painter,
+            source=source_rect,  # 渲染场景实际内容区域
+            target=target_rect   # 居中绘制到目标位置
+        )
+        painter.end()
+        return image
 
 
     # 场景导出器基类的导出方法，用于将场景导出为图像文件
     def export(self, filename, worker=None):
         logger.debug(f'Exporting scene to {filename}')      # 记录导出场景的文件名
         self.emit_begin_processing(worker, 1)               # 发送导出开始信号，参数为导出器实例和导出任务数量
+        
+        # 从文件名获取导出格式
+        if not hasattr(self, 'export_format'):
+            self.export_format = pathlib.Path(filename).suffix.lower().removeprefix('.')
+            if self.export_format not in self.IMAGE_FORMATS:
+                self.export_format = 'png'  # 默认格式
+        
         image = self.render_to_image()                      # 调用场景导出器基类的渲染方法，渲染场景到图像
 
         # 若导出器实例存在且取消导出标志为True
@@ -171,10 +197,17 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
             self.emit_finished(worker, filename, [])        # 发送导出完成信号，参数为导出器实例、导出文件名和空列表
             return                                          # 若导出器实例存在且取消导出标志为True，则直接返回，不导出图像
 
-        # 若导出图像保存失败
-        if not image.save(filename, quality=90):
-            self.handle_export_error(filename, 'Error writing file', worker) # 处理导出错误，参数为导出文件名、错误信息和导出器实例
-            return                                                           # 返回，不继续导出
+        # 获取图像质量设置
+        quality = 90  # 默认质量
+        if hasattr(self, 'export_config') and 'quality' in self.export_config:
+            quality = self.export_config['quality']
+        
+        logger.debug(f'Exporting with quality: {quality}')
+        
+        # 保存图像文件
+        if not image.save(filename, quality=quality):
+            self.handle_export_error(filename, 'Error writing file', worker)
+            return
 
         logger.debug('Export finished')               # 记录导出完成的信息
         self.emit_progress(worker, 1)                 # 发送导出进度信号，参数为导出器实例和导出进度值1
@@ -187,7 +220,7 @@ class SceneToSVGExporter(SceneExporterBase):
     TYPE = 'svg'                        # 场景导出器基类的导出类型属性，值为'svg'，表示导出为SVG格式
 
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
-    def get_user_input(self, parent):
+    def get_user_input(self, parent, export_format='svg'):
         self.size = self.default_size   # 将场景导出器基类的默认导出大小赋值给场景导出器基类的属性
         return True                     # 返回True表示用户输入成功
 
@@ -211,12 +244,12 @@ class SceneToSVGExporter(SceneExporterBase):
                 f'font-family:{families}',          # 取项的字体家族，用逗号分隔
                 f'font-weight:{font.weight()}',     # 取项的字体重量
                 f'font-stretch:{font.stretch()}',   # 取项的字体拉伸
-                f'font-style:{fontstyle}')          # 取项的字体样式，根据字体样式映射表映射为SVG的字体样式字符串
+                f'font-style:{fontstyle}')          # 取项的字体样式
 
     # 场景导出器基类的导出方法，用于将场景导出为SVG文件
     def render_to_svg(self, worker=None):
         svg = ET.Element(                                           # 创建SVG元素，参数为元素标签名svg
-            'svg',
+            'svg',                                           # 设置SVG元素的标签名，值为svg
             attrib={'width': str(self.size.width()),                # 设置SVG元素的宽度属性，值为场景导出器基类的属性size的宽度
                     'height': str(self.size.height()),              # 设置SVG元素的高度属性，值为场景导出器基类的属性size的高度
                     'xmlns': 'http://www.w3.org/2000/svg',          # 设置SVG元素的XML命名空间属性，值为http://www.w3.org/2000/svg
@@ -239,7 +272,7 @@ class SceneToSVGExporter(SceneExporterBase):
                 element = ET.Element(                         # 创建文本元素，参数为元素标签名text
                     'text',                                   # 设置文本元素的标签名，值为text
                     attrib={'style': ';'.join(styles),        # 将样式列表用分号连接成CSS样式字符串，设置为元素的style属性
-                            'dominant-baseline': 'hanging'})  # 设置文本元素的属性，值为hanging，指定文本的基线位置为悬挂基线
+                            'dominant-baseline': 'hanging'})  # 设置文本元素的垂直对齐方式，值为hanging
                 element.text = item.toPlainText()             # 设置文本元素的文本内容，值为项的纯文本内容
             # 处理图片项
             if item.TYPE == 'pixmap':                           # 若项的类型为图片项
@@ -381,9 +414,9 @@ class ImagesToDirectoryExporter(ExporterBase):
                         self.handle_existing = None                  # 处理已存在文件的方式设为None，记录当前位置
                         logger.debug('Skipping file')                # 调试日志，输出跳过文件    
                         continue                                     # 若处理已存在文件的方式为跳过，继续下一项
-                    elif self.handle_existing == 'skip_all':     # 若处理已存在文件的方式为跳过所有
-                        logger.debug('Skipping file')            # 调试日志，输出跳过文件
-                        continue                                 # 若处理已存在文件的方式为跳过所有，继续下一项
+                    elif self.handle_existing == 'skip_all':         # 若处理已存在文件的方式为跳过所有
+                        logger.debug('Skipping file')                # 调试日志，输出跳过文件
+                        continue                                     # 若处理已存在文件的方式为跳过所有，继续下一项
                     elif self.handle_existing == 'overwrite':    # 若处理已存在文件的方式为覆盖
                         self.handle_existing = None              # 处理已存在文件的方式设为None，记录当前位置
                         logger.debug('Overwrite file')           # 调试日志，输出覆盖文件     
@@ -403,14 +436,30 @@ class ImagesToDirectoryExporter(ExporterBase):
 
 # 注册场景到PDF
 @register_exporter
-class SceneToPDFExporter(SceneToPixmapExporter):
+class SceneToPDFExporter(SceneExporterBase):
+    """将场景导出为PDF文件"""
     
     TYPE = 'pdf'                        # 导出类型为PDF
     
     # 场景导出器基类的用户输入方法，用于获取用户输入的导出大小
-    def get_user_input(self, parent):
-        self.size = self.default_size   # 使用默认导出大小
-        return True                     # 返回True表示用户输入成功
+    def get_user_input(self, parent, export_format='pdf'):
+        """Ask user for final export size and PDF-specific parameters."""
+        
+        # 创建新的导出对话框，支持PDF特定参数
+        dialog = widgets.SceneExporterDialog(
+            parent=parent,
+            default_size=self.default_size,
+            export_format='pdf'
+        )
+        
+        if dialog.exec():
+            config = dialog.value()
+            logger.debug(f'Got PDF export config: {config}')
+            self.size = config['size']
+            self.export_config = config
+            return True
+        else:
+            return False
     
     # 导出场景到PDF文件
     def export(self, filename, worker=None):
@@ -426,29 +475,79 @@ class SceneToPDFExporter(SceneToPixmapExporter):
         # 创建PDF文档
         document = QtGui.QPdfWriter(filename)
         
-        # 设置页面大小与默认大小一致
-        document.setPageSize(QtGui.QPageSize(QtCore.QSizeF(self.size.width(), self.size.height()), QtGui.QPageSize.Unit.Point))
-        
-        # 设置页面边距
-        document.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))
+        # 应用导出配置
+        if hasattr(self, 'export_config'):
+            config = self.export_config
+            
+            # 设置页面大小
+            if config['page_size'] != 'custom':
+                document.setPageSize(QtGui.QPageSize(config['page_size']))
+            else:
+                # 自定义页面大小（转换为点，1点=1/72英寸）
+                page_size = QtGui.QPageSize(
+                    QtCore.QSizeF(self.size.width() / 300 * 72, self.size.height() / 300 * 72),
+                    QtGui.QPageSize.Unit.Point
+                )
+                document.setPageSize(page_size)
+            
+            # 设置页面边距（转换为点，1mm=2.83465点）
+            margin = config.get('margin', 0) * 2.83465  # 转换mm到点
+            document.setPageMargins(QtCore.QMarginsF(margin, margin, margin, margin))
+        else:
+            # 默认设置
+            document.setPageSize(QtGui.QPageSize(QtGui.QPageSize.PageSizeId.A4))
+            document.setPageMargins(QtCore.QMarginsF(0, 0, 0, 0))
         
         # 使用QPainter绘制PDF
         painter = QtGui.QPainter(document)
         
-        # 边距已设为0，无需再调整
-        margin = 0
+        # 设置高质量渲染
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.TextAntialiasing)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform)
         
-        # 定义目标矩形，不再使用边距
-        target_rect = QtCore.QRectF(
-            0,                                                              # 左边界为0
-            0,                                                              # 上边界为0
-            self.size.width(),                                               # 宽度为导出图像的宽度
-            self.size.height())                                             # 高度为导出图像的高度
+        # 获取场景内容的边界矩形
+        scene_bounds = self.scene.itemsBoundingRect()
         
-        # 直接将场景渲染到PDF，确保内容居中显示
-        self.scene.render(painter, 
-                          source=self.scene.itemsBoundingRect(), 
-                          target=target_rect)
+        # 确保场景内容非空
+        if scene_bounds.isEmpty():
+            painter.end()
+            self.emit_finished(worker, filename, ['No content to export'])
+            return
+        
+        # 获取PDF页面的大小（单位：点，72 DPI）
+        page_rect = document.pageLayout().pageSize().rectPoints()
+        
+        # 计算缩放比例，使场景内容适应页面
+        scale_x = page_rect.width() / scene_bounds.width()
+        scale_y = page_rect.height() / scene_bounds.height()
+        scale = min(scale_x, scale_y)  # 使用较小的缩放比例，确保内容完全可见
+        
+        # 计算缩放后的场景内容大小
+        scaled_width = scene_bounds.width() * scale
+        scaled_height = scene_bounds.height() * scale
+        
+        # 计算居中位置
+        offset_x = (page_rect.width() - scaled_width) / 2
+        offset_y = (page_rect.height() - scaled_height) / 2
+        
+        # 保存当前的画家状态
+        painter.save()
+        
+        # 移动画家到页面中心
+        painter.translate(offset_x, offset_y)
+        
+        # 应用缩放变换
+        painter.scale(scale, scale)
+        
+        # 移动画家到场景边界的左上角，使场景内容居中
+        painter.translate(-scene_bounds.left(), -scene_bounds.top())
+        
+        # 渲染整个场景
+        self.scene.render(painter)
+        
+        # 恢复画家状态
+        painter.restore()
         
         # 结束绘制
         painter.end()
@@ -456,3 +555,4 @@ class SceneToPDFExporter(SceneToPixmapExporter):
         logger.debug('PDF export finished')               # 记录导出完成的信息
         self.emit_progress(worker, 1)                     # 发送导出进度信号
         self.emit_finished(worker, filename, [])          # 发送导出完成信号
+

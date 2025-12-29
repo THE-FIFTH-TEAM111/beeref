@@ -1126,7 +1126,7 @@ class BeeGraphicsView(QGraphicsView, MainControlsMixin, ActionsMixin):
 
         exporter_cls = exporter_registry[ext.lstrip(".")]
         exporter = exporter_cls(self.scene)
-        if not exporter.get_user_input(self):
+        if not exporter.get_user_input(self, ext):
             return
 
         self.worker = fileio.ThreadedIO(exporter.export, filename)

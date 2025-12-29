@@ -336,3 +336,156 @@ class ExportImagesFileExistsDialog(QtWidgets.QDialog):
         for value, btn in self.radio_buttons.items():
             if btn.isChecked():
                 return value
+
+
+class SceneExporterDialog(QtWidgets.QDialog):
+    MIN_SIZE = 10
+    MAX_SIZE = 100000
+    
+    # 支持的页面大小
+    PAGE_SIZES = [
+        ('A0', QtGui.QPageSize.PageSizeId.A0),
+        ('A1', QtGui.QPageSize.PageSizeId.A1),
+        ('A2', QtGui.QPageSize.PageSizeId.A2),
+        ('A3', QtGui.QPageSize.PageSizeId.A3),
+        ('A4', QtGui.QPageSize.PageSizeId.A4),
+        ('A5', QtGui.QPageSize.PageSizeId.A5),
+        ('A6', QtGui.QPageSize.PageSizeId.A6),
+        ('Letter', QtGui.QPageSize.PageSizeId.Letter),
+        ('Legal', QtGui.QPageSize.PageSizeId.Legal),
+        ('Custom', None),
+    ]
+    
+    def __init__(self, parent, default_size, export_format='png'):
+        super().__init__(parent)
+        self.default_size = default_size
+        self.export_format = export_format.lower().removeprefix('.')
+        
+        if (self.default_size.width() > self.MAX_SIZE
+                or self.default_size.width() >= self.MAX_SIZE):
+            self.default_size.scale(
+                self.MAX_SIZE, self.MAX_SIZE,
+                Qt.AspectRatioMode.KeepAspectRatio)
+
+        self.ignore_change = False
+        self.setWindowTitle(f'Export Scene to {self.export_format.upper()}')
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        layout = QtWidgets.QGridLayout()
+        self.setLayout(layout)
+
+        # 通用设置：宽度和高度
+        width_label = QtWidgets.QLabel('Width:')
+        layout.addWidget(width_label, 0, 0)
+        self.width_input = QtWidgets.QSpinBox()
+        self.width_input.setRange(self.MIN_SIZE, self.MAX_SIZE)
+        self.width_input.setValue(default_size.width())
+        self.width_input.valueChanged.connect(self.on_width_changed)
+        layout.addWidget(self.width_input, 0, 1)
+
+        height_label = QtWidgets.QLabel('Height:')
+        layout.addWidget(height_label, 1, 0)
+        self.height_input = QtWidgets.QSpinBox()
+        self.height_input.setRange(self.MIN_SIZE, self.MAX_SIZE)
+        self.height_input.setValue(default_size.height())
+        self.height_input.valueChanged.connect(self.on_height_changed)
+        layout.addWidget(self.height_input, 1, 1)
+        
+        # 格式特定设置
+        row = 2
+        
+        if self.export_format in ['png', 'jpg', 'jpeg']:
+            # PNG/JPG 特定设置
+            if self.export_format == 'png':
+                # PNG 分辨率设置
+                dpi_label = QtWidgets.QLabel('DPI:')
+                layout.addWidget(dpi_label, row, 0)
+                self.dpi_input = QtWidgets.QSpinBox()
+                self.dpi_input.setRange(72, 3000)
+                self.dpi_input.setValue(300)
+                layout.addWidget(self.dpi_input, row, 1)
+                row += 1
+            else:
+                # JPG 压缩率设置
+                quality_label = QtWidgets.QLabel('Quality:')
+                layout.addWidget(quality_label, row, 0)
+                self.quality_input = QtWidgets.QSpinBox()
+                self.quality_input.setRange(1, 100)
+                self.quality_input.setValue(90)
+                layout.addWidget(self.quality_input, row, 1)
+                row += 1
+        elif self.export_format == 'pdf':
+            # PDF 页边距设置
+            margin_label = QtWidgets.QLabel('Margin (mm):')
+            layout.addWidget(margin_label, row, 0)
+            self.margin_input = QtWidgets.QSpinBox()
+            self.margin_input.setRange(0, 100)
+            self.margin_input.setValue(0)
+            layout.addWidget(self.margin_input, row, 1)
+            row += 1
+            
+            # PDF 页面大小设置
+            page_size_label = QtWidgets.QLabel('Page Size:')
+            layout.addWidget(page_size_label, row, 0)
+            self.page_size_combo = QtWidgets.QComboBox()
+            for name, _ in self.PAGE_SIZES:
+                self.page_size_combo.addItem(name)
+            # 默认选择A4
+            self.page_size_combo.setCurrentText('A4')
+            self.page_size_combo.currentIndexChanged.connect(self.on_page_size_changed)
+            layout.addWidget(self.page_size_combo, row, 1)
+            row += 1
+
+        # Bottom row of buttons
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok |
+            QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons, row, 1)
+    
+    def on_width_changed(self, width):
+        if not self.ignore_change:
+            self.ignore_change = True
+            new = self.default_size.scaled(
+                width, self.MAX_SIZE, Qt.AspectRatioMode.KeepAspectRatio)
+            self.height_input.setValue(new.height())
+            self.ignore_change = False
+
+    def on_height_changed(self, height):
+        if not self.ignore_change:
+            self.ignore_change = True
+            new = self.default_size.scaled(
+                self.MAX_SIZE, height, Qt.AspectRatioMode.KeepAspectRatio)
+            self.width_input.setValue(new.width())
+            self.ignore_change = False
+    
+    def on_page_size_changed(self, index):
+        """当页面大小改变时更新宽度和高度"""
+        name, page_size_id = self.PAGE_SIZES[index]
+        if page_size_id:
+            # 转换为像素大小（使用300 DPI）
+            size = QtGui.QPageSize(page_size_id).sizePixels(300)
+            self.ignore_change = True
+            self.width_input.setValue(size.width())
+            self.height_input.setValue(size.height())
+            self.ignore_change = False
+    
+    def value(self):
+        """返回导出参数配置"""
+        config = {
+            'size': QtCore.QSize(self.width_input.value(), self.height_input.value())
+        }
+        
+        if self.export_format == 'png':
+            config['dpi'] = self.dpi_input.value()
+        elif self.export_format in ['jpg', 'jpeg']:
+            config['quality'] = self.quality_input.value()
+        elif self.export_format == 'pdf':
+            config['margin'] = self.margin_input.value()
+            # 获取页面大小
+            index = self.page_size_combo.currentIndex()
+            name, page_size_id = self.PAGE_SIZES[index]
+            config['page_size'] = page_size_id if page_size_id else 'custom'
+        
+        return config
