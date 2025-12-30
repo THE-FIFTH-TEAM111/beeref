@@ -156,16 +156,13 @@ class SceneToPixmapExporter(SceneExporterBase):        # 场景导出器基类�
         
         # 获取场景内容的实际边界（源矩形）
         source_rect = self.scene.itemsBoundingRect()
-        # 计算内容在页面中的居中偏移量
-        x_offset = (self.size.width() - source_rect.width()) / 2
-        y_offset = (self.size.height() - source_rect.height()) / 2
         
-        # 定义居中的目标矩形
+        # 定义目标矩形：直接使用整个导出尺寸，让场景内容缩放填充
         target_rect = QtCore.QRectF(
-            x_offset,  # 水平居中偏移
-            y_offset,  # 垂直居中偏移
-            source_rect.width(),  # 使用内容实际宽度
-            source_rect.height()  # 使用内容实际高度
+            0,  # 从左上角开始
+            0,  # 从左上角开始
+            self.size.width(),  # 使用用户设置的整个宽度
+            self.size.height()  # 使用用户设置的整个高度
         )
         logger.trace(f'Final export target_rect (centered): {target_rect}')
 
@@ -496,8 +493,12 @@ class SceneToPDFExporter(SceneExporterBase):
                 document.setPageSize(QtGui.QPageSize(config['page_size']))
             else:
                 # 自定义页面大小（转换为点，1点=1/72英寸）
+                # 用户输入的是像素，使用300 DPI转换为点
+                dpi = 300
+                page_width = self.size.width() / dpi * 72
+                page_height = self.size.height() / dpi * 72
                 page_size = QtGui.QPageSize(
-                    QtCore.QSizeF(self.size.width() / 300 * 72, self.size.height() / 300 * 72),
+                    QtCore.QSizeF(page_width, page_height),
                     QtGui.QPageSize.Unit.Point
                 )
                 document.setPageSize(page_size)
@@ -546,13 +547,14 @@ class SceneToPDFExporter(SceneExporterBase):
         # 保存当前的画家状态
         painter.save()
         
-        # 移动画家到页面中心
+        # 首先移动画家到页面中心位置
         painter.translate(offset_x, offset_y)
         
-        # 应用缩放变换
+        # 应用缩放变换，使场景内容适应页面
         painter.scale(scale, scale)
         
-        # 移动画家到场景边界的左上角，使场景内容居中
+        # 然后移动画家到场景内容的左上角，这样场景内容就会从(0,0)开始绘制
+        # 但由于我们已经缩放了坐标系，所以需要使用缩放前的偏移量
         painter.translate(-scene_bounds.left(), -scene_bounds.top())
         
         # 渲染整个场景

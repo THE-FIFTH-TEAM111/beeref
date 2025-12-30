@@ -374,7 +374,8 @@ class SceneExporterDialog(QtWidgets.QDialog):
         self.setLayout(layout)
 
         # 通用设置：宽度和高度
-        width_label = QtWidgets.QLabel('Width:')
+        width_label_text = 'PDF Width:' if self.export_format == 'pdf' else 'Width:'
+        width_label = QtWidgets.QLabel(width_label_text)
         layout.addWidget(width_label, 0, 0)
         self.width_input = QtWidgets.QSpinBox()
         self.width_input.setRange(self.MIN_SIZE, self.MAX_SIZE)
@@ -382,7 +383,8 @@ class SceneExporterDialog(QtWidgets.QDialog):
         self.width_input.valueChanged.connect(self.on_width_changed)
         layout.addWidget(self.width_input, 0, 1)
 
-        height_label = QtWidgets.QLabel('Height:')
+        height_label_text = 'PDF Height:' if self.export_format == 'pdf' else 'Height:'
+        height_label = QtWidgets.QLabel(height_label_text)
         layout.addWidget(height_label, 1, 0)
         self.height_input = QtWidgets.QSpinBox()
         self.height_input.setRange(self.MIN_SIZE, self.MAX_SIZE)
