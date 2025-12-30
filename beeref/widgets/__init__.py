@@ -425,6 +425,22 @@ class SceneExporterDialog(QtWidgets.QDialog):
             layout.addWidget(self.margin_input, row, 1)
             row += 1
             
+            # PDF 真实大小选项
+            self.true_size_checkbox = QtWidgets.QCheckBox('Use True Image Size')
+            self.true_size_checkbox.setToolTip('Export images at their actual physical size based on DPI')
+            self.true_size_checkbox.stateChanged.connect(self.on_true_size_changed)
+            layout.addWidget(self.true_size_checkbox, row, 0, 1, 2)  # 横跨两列
+            row += 1
+            
+            # PDF DPI设置（用于真实大小计算）
+            self.dpi_label = QtWidgets.QLabel('DPI:')
+            layout.addWidget(self.dpi_label, row, 0)
+            self.dpi_input = QtWidgets.QSpinBox()
+            self.dpi_input.setRange(72, 3000)
+            self.dpi_input.setValue(300)
+            layout.addWidget(self.dpi_input, row, 1)
+            row += 1
+            
             # PDF 页面大小设置
             page_size_label = QtWidgets.QLabel('Page Size:')
             layout.addWidget(page_size_label, row, 0)
@@ -472,6 +488,15 @@ class SceneExporterDialog(QtWidgets.QDialog):
             self.width_input.setValue(size.width())
             self.height_input.setValue(size.height())
             self.ignore_change = False
+            
+    def on_true_size_changed(self, state):
+        """当真实大小选项改变时更新UI状态"""
+        if state == Qt.CheckState.Checked:
+            # 选中真实大小选项时，禁用页面大小选择
+            self.page_size_combo.setEnabled(False)
+        else:
+            # 取消选中时，启用页面大小选择
+            self.page_size_combo.setEnabled(True)
     
     def value(self):
         """返回导出参数配置"""
@@ -485,9 +510,19 @@ class SceneExporterDialog(QtWidgets.QDialog):
             config['quality'] = self.quality_input.value()
         elif self.export_format == 'pdf':
             config['margin'] = self.margin_input.value()
-            # 获取页面大小
-            index = self.page_size_combo.currentIndex()
-            name, page_size_id = self.PAGE_SIZES[index]
-            config['page_size'] = page_size_id if page_size_id else 'custom'
+            
+            # 真实大小选项
+            if hasattr(self, 'true_size_checkbox'):
+                config['use_true_size'] = self.true_size_checkbox.isChecked()
+                config['dpi'] = self.dpi_input.value()
+            
+            # 获取页面大小（如果未使用真实大小）
+            if not config.get('use_true_size', False):
+                index = self.page_size_combo.currentIndex()
+                name, page_size_id = self.PAGE_SIZES[index]
+                config['page_size'] = page_size_id if page_size_id else 'custom'
+            else:
+                # 使用真实大小时，强制使用自定义页面大小
+                config['page_size'] = 'custom'
         
         return config

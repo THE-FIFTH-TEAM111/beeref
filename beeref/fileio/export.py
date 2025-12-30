@@ -488,13 +488,33 @@ class SceneToPDFExporter(SceneExporterBase):
         if hasattr(self, 'export_config'):
             config = self.export_config
             
-            # 设置页面大小
-            if config['page_size'] != 'custom':
+            # 检查是否启用真实大小选项
+            use_true_size = config.get('use_true_size', False)
+            
+            if use_true_size:
+                # 获取场景内容的边界矩形
+                scene_bounds = self.scene.itemsBoundingRect()
+                
+                # 使用配置中的DPI（默认300）
+                dpi = config.get('dpi', 300)
+                
+                # 计算物理尺寸（像素 / DPI = 英寸）
+                # 转换为点（1英寸 = 72点）
+                page_width = scene_bounds.width() / dpi * 72
+                page_height = scene_bounds.height() / dpi * 72
+                
+                # 设置页面大小为计算出的真实大小
+                page_size = QtGui.QPageSize(
+                    QtCore.QSizeF(page_width, page_height),
+                    QtGui.QPageSize.Unit.Point
+                )
+                document.setPageSize(page_size)
+            elif config['page_size'] != 'custom':
+                # 使用预设页面大小
                 document.setPageSize(QtGui.QPageSize(config['page_size']))
             else:
                 # 自定义页面大小（转换为点，1点=1/72英寸）
-                # 用户输入的是像素，使用300 DPI转换为点
-                dpi = 300
+                dpi = config.get('dpi', 300)
                 page_width = self.size.width() / dpi * 72
                 page_height = self.size.height() / dpi * 72
                 page_size = QtGui.QPageSize(
@@ -531,10 +551,19 @@ class SceneToPDFExporter(SceneExporterBase):
         # 获取PDF页面的大小（单位：点，72 DPI）
         page_rect = document.pageLayout().pageSize().rectPoints()
         
-        # 计算缩放比例，使场景内容适应页面
-        scale_x = page_rect.width() / scene_bounds.width()
-        scale_y = page_rect.height() / scene_bounds.height()
-        scale = min(scale_x, scale_y)  # 使用较小的缩放比例，确保内容完全可见
+        # 检查是否启用真实大小选项
+        use_true_size = False
+        if hasattr(self, 'export_config'):
+            use_true_size = self.export_config.get('use_true_size', False)
+        
+        if use_true_size:
+            # 使用真实大小时，保持1:1缩放比例
+            scale = 1.0
+        else:
+            # 计算缩放比例，使场景内容适应页面
+            scale_x = page_rect.width() / scene_bounds.width()
+            scale_y = page_rect.height() / scene_bounds.height()
+            scale = min(scale_x, scale_y)  # 使用较小的缩放比例，确保内容完全可见
         
         # 计算缩放后的场景内容大小
         scaled_width = scene_bounds.width() * scale
